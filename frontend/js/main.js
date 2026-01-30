@@ -9,15 +9,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Hardcoded model lists (based on public API availability as of Jan 2026)
     // Grok / xAI models - from docs.x.ai and recent announcements
-    const grokModels = [
-        { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (Reasoning)' },
-        { value: 'grok-4-1-fast-non-reasoning', label: 'Grok 4.1 Fast (Non-Reasoning)' },
-        { value: 'grok-4-fast-reasoning', label: 'Grok 4 Fast (Reasoning)' },
-        { value: 'grok-4-fast-non-reasoning', label: 'Grok 4 Fast (Non-Reasoning)' },
-        { value: 'grok-4-0709', label: 'Grok 4 (0709 snapshot)' },
-        { value: 'grok-3', label: 'Grok 3' },
-        { value: 'grok-3-mini', label: 'Grok 3 Mini' }
-    ];
+// Hardcoded model lists (based on xAI API docs as of Jan 2026)
+const grokModels = [
+    { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (Reasoning)' },
+    { value: 'grok-4-1-fast-non-reasoning', label: 'Grok 4.1 Fast (Non-Reasoning)' },
+    { value: 'grok-code-fast-1', label: 'Grok Code Fast 1 (Coding-Optimized)' },  // Added: Dedicated coding model
+    { value: 'grok-4-fast-reasoning', label: 'Grok 4 Fast (Reasoning)' },
+    { value: 'grok-4-fast-non-reasoning', label: 'Grok 4 Fast (Non-Reasoning)' },
+    { value: 'grok-4-0709', label: 'Grok 4 (0709 snapshot)' },
+    { value: 'grok-3', label: 'Grok 3' },
+    { value: 'grok-3-mini', label: 'Grok 3 Mini' },
+    { value: 'grok-2-vision-1212', label: 'Grok 2 Vision (1212 - Multimodal/Text+Image)' }  // Included for completeness, as it supports text chats with vision
+];
 
     // OpenAI / ChatGPT models - from platform.openai.com/docs/models Jan 2026
     const openaiModels = [
