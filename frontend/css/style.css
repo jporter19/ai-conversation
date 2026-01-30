@@ -194,4 +194,13 @@ footer {
         width: 100%;
         padding: 1rem;
     }
+    select:disabled {
+        background: #f0f0f0;
+        color: #aaa;
+        cursor: not-allowed;
+    }
+
+.selector-group select {
+    min-width: 220px; /* Better spacing */
+}
 }
