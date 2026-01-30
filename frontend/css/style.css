@@ -1,6 +1,17 @@
 /* frontend/css/style.css */
-/* Purpose: Global styles for the AI Conversation Hub */
-/* Goal: Clean, modern, readable, responsive layout */
+/* Purpose: Modern, responsive layout for AI Conversation Hub */
+/* Favors desktop usability (wide chat area) while stacking nicely on mobile */
+
+:root {
+    --primary: #1a535c;
+    --primary-dark: #0f2f38;
+    --bg-light: #f5f7fa;
+    --card-bg: #ffffff;
+    --text-dark: #2c3e50;
+    --text-light: #666;
+    --border: #e0e0e0;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
 
 * {
     margin: 0;
@@ -9,88 +20,178 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f5f7fa;
-    color: #2c3e50;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-light);
+    color: var(--text-dark);
     line-height: 1.6;
     min-height: 100vh;
 }
 
-.container {
-    max-width: 1200px;
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 2rem 1rem;
 }
 
-header {
-    text-align: center;
-    padding: 2rem 0;
-    border-bottom: 1px solid #e0e0e0;
-    margin-bottom: 2rem;
-}
-
-header h1 {
-    font-size: 2.8rem;
-    color: #1a535c;
-    margin-bottom: 0.5rem;
-}
-
-header p {
-    font-size: 1.2rem;
-    color: #666;
-}
-
-main {
-    margin: 2rem 0;
-}
-
-.welcome {
+.app-header {
     background: white;
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    text-align: center;
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
-.welcome h2 {
-    color: #2c3e50;
+.header-left h1 {
+    font-size: 1.8rem;
+    color: var(--primary);
+}
+
+.header-right {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.selector-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.selector-group label {
+    font-weight: 500;
+    color: var(--text-light);
+}
+
+select {
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: white;
+    font-size: 1rem;
+    min-width: 160px;
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2rem;
+    overflow: hidden;
+}
+
+.chat-history {
+    flex: 1;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    overflow-y: auto;
     margin-bottom: 1rem;
 }
 
-.welcome ul {
-    list-style: none;
-    margin-top: 1.5rem;
-    text-align: left;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
+.welcome-message {
+    text-align: center;
+    color: var(--text-light);
+    padding: 2rem 1rem;
 }
 
-.welcome li {
-    margin: 0.75rem 0;
-    font-size: 1.1rem;
+.input-area {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
-.welcome li::before {
-    content: "→ ";
-    color: #1a535c;
-    font-weight: bold;
+#user-input {
+    flex: 1;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1.05rem;
+    resize: none;
+    min-height: 80px;
+}
+
+#send-btn {
+    padding: 0 2rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#send-btn:hover {
+    background: var(--primary-dark);
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.action-buttons button {
+    padding: 0.8rem 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.action-buttons button:hover {
+    background: #f0f0f0;
 }
 
 footer {
     text-align: center;
-    margin-top: 3rem;
-    color: #888;
-    font-size: 0.95rem;
+    padding: 1rem;
+    color: var(--text-light);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--border);
 }
 
-/* Responsive adjustments */
+/* Mobile responsiveness */
 @media (max-width: 768px) {
-    header h1 {
-        font-size: 2.2rem;
+    .app-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
     
-    .container {
-        padding: 1.5rem 1rem;
+    .header-right {
+        flex-direction: column;
+        width: 100%;
+        gap: 1rem;
+    }
+    
+    .selector-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    select {
+        flex: 1;
+    }
+    
+    .chat-container {
+        padding: 1rem;
+    }
+    
+    .input-area {
+        flex-direction: column;
+    }
+    
+    #send-btn {
+        width: 100%;
+        padding: 1rem;
     }
 }

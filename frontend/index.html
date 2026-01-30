@@ -4,34 +4,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Conversation Hub</title>
-    
-    <!-- Link to our stylesheet -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>AI Conversation Hub</h1>
-            <p>Personal multi-AI conversation tool</p>
+    <div class="app-container">
+        <!-- Header: AI & Model selection + buttons -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1>AI Conversation Hub</h1>
+            </div>
+            <div class="header-right">
+                <div class="selector-group">
+                    <label for="ai-select">AI:</label>
+                    <select id="ai-select">
+                        <option value="">Select AI</option>
+                        <option value="grok">Grok (xAI)</option>
+                        <option value="chatgpt">ChatGPT (OpenAI)</option>
+                    </select>
+                </div>
+                <div class="selector-group">
+                    <label for="model-select">Model:</label>
+                    <select id="model-select" disabled>
+                        <option value="">Select model after choosing AI</option>
+                    </select>
+                </div>
+            </div>
         </header>
 
-        <main>
-            <section class="welcome">
-                <h2>Welcome!</h2>
-                <p>This is your starting point. We're going to build a powerful interface to chat with Grok, ChatGPT, and more.</p>
-                <p>Next steps:</p>
-                <ul>
-                    <li>Choose an AI (Grok or ChatGPT)</li>
-                    <li>Select a model</li>
-                    <li>Start chatting with rich text & code support</li>
-                    <li>Save and load conversations</li>
-                    <li>Work with Projects</li>
-                </ul>
-            </section>
+        <!-- Main chat area -->
+        <main class="chat-container">
+            <div class="chat-history" id="chat-history">
+                <!-- Messages will go here (placeholder for now) -->
+                <div class="welcome-message">
+                    <p>Welcome to AI Conversation Hub!</p>
+                    <p>Choose an AI above to start chatting. Coming soon: real conversations, code highlighting, storage, projects, and more.</p>
+                </div>
+            </div>
+
+            <!-- Input area -->
+            <div class="input-area">
+                <textarea 
+                    id="user-input" 
+                    placeholder="Type your message here... (e.g., Write Python code to sort a list)"
+                    rows="4"
+                ></textarea>
+                <button id="send-btn">Send</button>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="action-buttons">
+                <button id="reset-btn">Reset Conversation</button>
+                <button id="store-btn">Store Conversation</button>
+            </div>
         </main>
 
         <footer>
-            <p>Development in progress • Powered by FastAPI + your ideas</p>
+            <p>Local development • HTTP only for now • Powered by FastAPI + your vision</p>
         </footer>
     </div>
 </body>
