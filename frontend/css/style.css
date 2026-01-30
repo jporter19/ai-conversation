@@ -1,0 +1,96 @@
+/* frontend/css/style.css */
+/* Purpose: Global styles for the AI Conversation Hub */
+/* Goal: Clean, modern, readable, responsive layout */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fa;
+    color: #2c3e50;
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+header {
+    text-align: center;
+    padding: 2rem 0;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 2rem;
+}
+
+header h1 {
+    font-size: 2.8rem;
+    color: #1a535c;
+    margin-bottom: 0.5rem;
+}
+
+header p {
+    font-size: 1.2rem;
+    color: #666;
+}
+
+main {
+    margin: 2rem 0;
+}
+
+.welcome {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    text-align: center;
+}
+
+.welcome h2 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+}
+
+.welcome ul {
+    list-style: none;
+    margin-top: 1.5rem;
+    text-align: left;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.welcome li {
+    margin: 0.75rem 0;
+    font-size: 1.1rem;
+}
+
+.welcome li::before {
+    content: "→ ";
+    color: #1a535c;
+    font-weight: bold;
+}
+
+footer {
+    text-align: center;
+    margin-top: 3rem;
+    color: #888;
+    font-size: 0.95rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 2.2rem;
+    }
+    
+    .container {
+        padding: 1.5rem 1rem;
+    }
+}
