@@ -1,6 +1,6 @@
 // frontend/js/main.js
-// Purpose: Client-side interactivity for AI Conversation Hub
-//          Handles AI/model selection + chat message display (user + mock AI)
+// Purpose: Client-side logic for AI Conversation Hub
+//          Manages conversation state, renders history, handles input/send/reset
 
 document.addEventListener('DOMContentLoaded', () => {
     // ── DOM Elements ────────────────────────────────────────────────────────
@@ -11,33 +11,93 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatHistory    = document.getElementById('chat-history');
     const resetBtn       = document.getElementById('reset-btn');
 
+    // ── Conversation State ──────────────────────────────────────────────────
+    let conversation = []; // Array of { role: "user"|"assistant", content: string }
+
+    const STORAGE_KEY = 'ai-conversation-hub-current-chat';
+
     // ── Model Lists (Jan 2026 snapshot) ─────────────────────────────────────
     const grokModels = [
-        { value: 'grok-4-1-fast-reasoning',        label: 'Grok 4.1 Fast (Reasoning)' },
-        { value: 'grok-4-1-fast-non-reasoning',    label: 'Grok 4.1 Fast (Non-Reasoning)' },
-        { value: 'grok-code-fast-1',               label: 'Grok Code Fast 1 (Coding-Optimized)' },
-        { value: 'grok-4-fast-reasoning',          label: 'Grok 4 Fast (Reasoning)' },
-        { value: 'grok-4-fast-non-reasoning',      label: 'Grok 4 Fast (Non-Reasoning)' },
-        { value: 'grok-4-0709',                    label: 'Grok 4 (0709 snapshot)' },
-        { value: 'grok-3',                         label: 'Grok 3' },
-        { value: 'grok-3-mini',                    label: 'Grok 3 Mini' },
-        { value: 'grok-2-vision-1212',             label: 'Grok 2 Vision (1212 - Multimodal)' }
+        { value: 'grok-4-1-fast-reasoning', label: 'Grok 4.1 Fast (Reasoning)' },
+        { value: 'grok-4-1-fast-non-reasoning', label: 'Grok 4.1 Fast (Non-Reasoning)' },
+        { value: 'grok-code-fast-1', label: 'Grok Code Fast 1 (Coding-Optimized)' },
+        // ... rest of your list ...
     ];
 
     const openaiModels = [
-        { value: 'gpt-5.2',         label: 'GPT-5.2 (Flagship)' },
-        { value: 'gpt-5.2-pro',     label: 'GPT-5.2 Pro (Extended reasoning)' },
-        { value: 'gpt-5-mini',      label: 'GPT-5 Mini (Faster)' },
-        { value: 'gpt-5-nano',      label: 'GPT-5 Nano (Fastest, cheapest)' },
-        { value: 'gpt-5',           label: 'GPT-5 (Previous flagship)' }
+        { value: 'gpt-5.2', label: 'GPT-5.2 (Flagship)' },
+        // ... rest of your list ...
     ];
 
-    // ── Populate Models ─────────────────────────────────────────────────────
+    // ── Load from localStorage on page load ────────────────────────────────
+    function loadConversation() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            conversation = JSON.parse(saved);
+            renderHistory();
+        } else {
+            showWelcome();
+        }
+    }
+
+    // ── Save to localStorage ────────────────────────────────────────────────
+    function saveConversation() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
+    }
+
+    // ── Render full chat history ────────────────────────────────────────────
+    function renderHistory() {
+        chatHistory.innerHTML = ''; // Clear
+
+        if (conversation.length === 0) {
+            showWelcome();
+            return;
+        }
+
+        conversation.forEach(msg => {
+            const div = document.createElement('div');
+            div.classList.add('message');
+            div.classList.add(msg.role === 'user' ? 'user-message' : 'ai-message');
+
+            if (msg.role === 'user') {
+                div.textContent = msg.content;
+            } else {
+                const html = marked.parse(msg.content, {
+                    gfm: true,
+                    breaks: true,
+                    headerIds: false
+                });
+                div.innerHTML = html;
+
+                // Highlight code blocks
+                div.querySelectorAll('pre code').forEach(block => {
+                    hljs.highlightElement(block);
+                });
+            }
+
+            chatHistory.appendChild(div);
+        });
+
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function showWelcome() {
+        const welcome = document.createElement('div');
+        welcome.className = 'welcome-message';
+        welcome.innerHTML = `
+            <p>Welcome to AI Conversation Hub!</p>
+            <p>Choose an AI and model above, then start typing your message.</p>
+            <p>Conversations are saved in browser storage for now.</p>
+        `;
+        chatHistory.appendChild(welcome);
+    }
+
+    // ── Populate Models (unchanged from before) ─────────────────────────────
     function populateModels(models) {
         modelSelect.innerHTML = '';
         const placeholder = document.createElement('option');
         placeholder.value = '';
-        placeholder.textContent = models.length ? 'Select model' : 'No models available';
+        placeholder.textContent = 'Select model';
         placeholder.disabled = true;
         placeholder.selected = true;
         modelSelect.appendChild(placeholder);
@@ -54,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     aiSelect.addEventListener('change', () => {
         const ai = aiSelect.value;
-        if (ai === 'grok')      populateModels(grokModels);
+        if (ai === 'grok') populateModels(grokModels);
         else if (ai === 'chatgpt') populateModels(openaiModels);
         else {
             modelSelect.innerHTML = '<option value="" selected disabled>Select model after choosing AI</option>';
@@ -62,54 +122,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ── Chat Message Rendering ──────────────────────────────────────────────
-        // ── Chat Message Rendering ──────────────────────────────────────────────
-    function addMessage(content, isUser = false) {
-        const div = document.createElement('div');
-        div.classList.add('message');
-        div.classList.add(isUser ? 'user-message' : 'ai-message');
-
-        if (isUser) {
-            // User messages: plain text, escaped for safety
-            div.textContent = content;
-        } else {
-            // AI messages: render as markdown + highlight code
-            const html = marked.parse(content, {
-                gfm: true,           // GitHub-flavored markdown
-                breaks: true,        // line breaks → <br>
-                headerIds: false     // no auto IDs on headings
-            });
-
-            div.innerHTML = html;
-
-            // Highlight code blocks after rendering
-            div.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
-        }
-
-        chatHistory.appendChild(div);
-
-        // Scroll to bottom
-        chatHistory.scrollTop = chatHistory.scrollHeight;
-    }
-
+    // ── Send Message ────────────────────────────────────────────────────────
     function sendMessage() {
         const text = userInput.value.trim();
         if (!text) return;
 
-        // Show user message
-        addMessage(text, true);
+        // Add user message to state
+        conversation.push({ role: 'user', content: text });
+        renderHistory();
+        saveConversation();
 
         // Clear input
         userInput.value = '';
 
-        // Mock AI response (for now)
-setTimeout(() => {
-    const hasCodeKeywords = /* your conditions */;
+        // Mock AI response
+        setTimeout(() => {
+            const hasCodeKeywords = text.toLowerCase().includes('code') ||
+                                    text.toLowerCase().includes('python') ||
+                                    text.toLowerCase().includes('function') ||
+                                    text.toLowerCase().includes('write');
 
-    const mockReply = hasCodeKeywords
-        ? `**Here's a quick example** in Python:
+            const mockReply = hasCodeKeywords
+                ? `**Here's a quick example** in Python:
 
 \`\`\`python
 def reverse_string(s):
@@ -119,23 +153,25 @@ print(reverse_string("hello"))  # → olleh
 \`\`\`
 
 You can copy the code block easily. Want me to improve it or add error handling?`
-        : `You said: *${text}*
+                : `You said: *${text}*
 
 I'm a mock response for now.
 
 - Bullet point 1
 - Bullet point 2
 
-**Real Grok/ChatGPT integration coming soon!**`;
+**Real integration coming soon!**`;
 
-    addMessage(mockReply, false);
-}, 800);
+            conversation.push({ role: 'assistant', content: mockReply });
+            renderHistory();
+            saveConversation();
+        }, 800);
+    }
 
-    // ── Event Listeners ─────────────────────────────────────────────────────
     sendBtn.addEventListener('click', sendMessage);
 
-    userInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {  // Enter without Shift = send
+    userInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
@@ -143,12 +179,12 @@ I'm a mock response for now.
 
     resetBtn.addEventListener('click', () => {
         if (confirm('Reset the current conversation?')) {
-            chatHistory.innerHTML = `
-                <div class="welcome-message">
-                    <p>Conversation reset.</p>
-                    <p>Type your next message to begin again.</p>
-                </div>
-            `;
+            conversation = [];
+            localStorage.removeItem(STORAGE_KEY);
+            renderHistory();
         }
     });
+
+    // ── Initialize ──────────────────────────────────────────────────────────
+    loadConversation();
 });
