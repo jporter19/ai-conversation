@@ -1,338 +1,332 @@
 /* frontend/css/style.css
    Purpose: Modern, responsive, desktop-favored styling for AI Conversation Hub
-   Features: CSS variables, flex/grid layout, chat bubbles, modal dialog, code highlighting
-   Responsive: Stacks cleanly on mobile, wide layout on desktop
+   Features: CSS variables, flex layout, chat bubbles, modal dialog, code highlighting
+   Responsive: Stacks cleanly on mobile, wide & stable layout on desktop
 */
 
 :root {
-    --primary: #1a535c;
-    --primary-dark: #0f2f38;
-    --bg-light: #f5f7fa;
-    --card-bg: #ffffff;
-    --text-dark: #2c3e50;
-    --text-light: #666;
-    --border: #e0e0e0;
-    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --primary: #1a535c;
+  --primary-dark: #0f2f38;
+  --bg-light: #f5f7fa;
+  --card-bg: #ffffff;
+  --text-dark: #2c3e50;
+  --text-light: #666;
+  --border: #e0e0e0;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg-light);
-    color: var(--text-dark);
-    line-height: 1.6;
-    min-height: 100vh;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-light);
+  color: var(--text-dark);
+  line-height: 1.6;
+  min-height: 100vh;
 }
 
+/* Root layout */
 .app-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    max-width: 1400px;
-    margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-/* Header */
+/* Header & selectors */
 .app-header {
-    background: white;
-    border-bottom: 1px solid var(--border);
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
+  background: white;
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .header-left h1 {
-    font-size: 1.8rem;
-    color: var(--primary);
+  font-size: 1.8rem;
+  color: var(--primary);
 }
 
 .header-right {
-    display: flex;
-    gap: 1.5rem;
-    align-items: center;
-    flex-wrap: wrap;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 500px; /* Prevents collapse when model select shrinks */
 }
 
 .selector-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 260px;          /* ← NEW: reserve space for longest possible label */
-}
-
-#model-select {
-    min-width: 220px;          /* Force consistent width even when disabled/short */
-    width: 220px;              /* Optional: fixed width for zero shift */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 260px; /* Reserves space for longest label */
 }
 
 .selector-group label {
-    font-weight: 500;
-    color: var(--text-light);
+  font-weight: 500;
+  color: var(--text-light);
 }
 
 select {
-    padding: 0.6rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: white;
-    font-size: 1rem;
-    min-width: 160px;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  font-size: 1rem;
+  min-width: 220px;
+  width: 220px; /* Fixed width prevents layout shift on selection */
 }
 
 select:disabled {
-    background: #f0f0f0;
-    color: #aaa;
-    cursor: not-allowed;
+  background: #f0f0f0;
+  color: #aaa;
+  cursor: not-allowed;
 }
 
 /* Main chat area */
 .chat-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 1.5rem 2rem;
-    overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 2rem;
+  overflow: hidden;
 }
 
 .chat-history {
-    flex: 1;
-    background: var(--card-bg);
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-    padding: 1.5rem;
-    overflow-y: auto;
-    margin-bottom: 1rem;
-    display: flex;
-    flex-direction: column; /* Ensures messages stack top-to-bottom */
+  flex: 1;
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column; /* Messages stack top-to-bottom */
 }
 
 .welcome-message {
-    text-align: center;
-    color: var(--text-light);
-    padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-light);
+  padding: 2rem 1rem;
 }
 
-/* Input & buttons */
+/* Input & action buttons */
 .input-area {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1rem;
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 #user-input {
-    flex: 1;
-    padding: 1rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 1.05rem;
-    resize: none;
-    min-height: 80px;
+  flex: 1;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1.05rem;
+  resize: none;
+  min-height: 80px;
 }
 
 #send-btn {
-    padding: 0 2rem;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
+  padding: 0 2rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
 #send-btn:hover {
-    background: var(--primary-dark);
+  background: var(--primary-dark);
 }
 
 .action-buttons {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
 }
 
 .action-buttons button {
-    padding: 0.8rem 1.5rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: white;
-    cursor: pointer;
-    font-weight: 500;
+  padding: 0.8rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-weight: 500;
 }
 
 .action-buttons button:hover {
-    background: #f0f0f0;
+  background: #f0f0f0;
 }
 
 /* Chat message bubbles */
 .message {
-    margin: 1rem 0;
-    max-width: 80%;
-    padding: 1rem 1.2rem;
-    border-radius: 18px;
-    line-height: 1.5;
+  margin: 1rem 0;
+  max-width: 80%;
+  padding: 1rem 1.2rem;
+  border-radius: 18px;
+  line-height: 1.5;
 }
 
 .user-message {
-    background: var(--primary);
-    color: white;
-    margin-left: auto;
-    border-bottom-right-radius: 4px;
+  background: var(--primary);
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
 }
 
 .ai-message {
-    background: #e9ecef;
-    color: var(--text-dark);
-    margin-right: auto;
-    border-bottom-left-radius: 4px;
+  background: #e9ecef;
+  color: var(--text-dark);
+  margin-right: auto;
+  border-bottom-left-radius: 4px;
 }
 
 .message pre,
 .message code {
-    background: #2d2d2d;
-    color: #e6e6e6;
-    padding: 0.8rem;
-    border-radius: 6px;
-    overflow-x: auto;
-    font-family: 'Consolas', 'Courier New', monospace;
+  background: #2d2d2d;
+  color: #e6e6e6;
+  padding: 0.8rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: 'Consolas', 'Courier New', monospace;
 }
 
 /* Footer */
 footer {
-    text-align: center;
-    padding: 1rem;
-    color: var(--text-light);
-    font-size: 0.9rem;
-    border-top: 1px solid var(--border);
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-light);
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border);
 }
 
-/* Modal dialog - improved centering */
+/* Modal dialog */
 .store-modal {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    padding: 0;
-    max-width: 420px;
-    width: 90%;
-    background: transparent;
-
-    /* Explicit centering improvements */
-    margin: auto;                    /* Centers horizontally and vertically */
-    top: 50%;                        /* Helps vertical centering in some contexts */
-    transform: translateY(-50%);     /* Perfect vertical centering when combined with top:50% */
-    height: fit-content;             /* Prevents stretching */
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  padding: 0;
+  max-width: 420px;
+  width: 90%;
+  background: transparent;
+  margin: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  height: fit-content;
 }
-/* Optional: make backdrop slightly dimmer for better focus */
+
 .store-modal::backdrop {
-    background: rgba(0, 0, 0, 0.6);  /* Slightly darker than before for emphasis */
+  background: rgba(0, 0, 0, 0.6);
 }
 
-/* Modal inner content */
 .modal-content {
-    background: white;
-    padding: 2rem;
-    border-radius: 12px;
-    text-align: center;
-
-    /* Ensure content doesn't stretch oddly */
-    max-height: 90vh;
-    overflow-y: auto;                /* Scroll if modal content is very long */
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  text-align: center;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-content h2 {
-    margin-bottom: 1rem;
-    color: var(--primary);
+  margin-bottom: 1rem;
+  color: var(--primary);
 }
 
 .modal-content p {
-    margin-bottom: 1.5rem;
-    color: var(--text-light);
+  margin-bottom: 1.5rem;
+  color: var(--text-light);
 }
 
 .modal-options {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .modal-btn {
-    padding: 0.9rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.05rem;
-    cursor: pointer;
-    transition: all 0.2s;
+  padding: 0.9rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .modal-btn.primary {
-    background: var(--primary);
-    color: white;
+  background: var(--primary);
+  color: white;
 }
 
 .modal-btn.primary:hover {
-    background: var(--primary-dark);
+  background: var(--primary-dark);
 }
 
 .modal-btn.secondary {
-    background: #e0e0e0;
-    color: var(--text-dark);
+  background: #e0e0e0;
+  color: var(--text-dark);
 }
 
 .modal-btn.secondary:hover {
-    background: #d0d0d0;
+  background: #d0d0d0;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .app-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-    .header-right {
-        flex-direction: column;
-        width: 100%;
-        gap: 1rem;
-    }
+  .header-right {
+    flex-direction: column;
+    width: 100%;
+    gap: 1rem;
+    min-width: auto;
+  }
 
-    .selector-group {
-        width: 100%;
-        justify-content: space-between;
-    }
+  .selector-group {
+    width: 100%;
+    justify-content: space-between;
+    min-width: auto;
+  }
 
-    select {
-        flex: 1;
-    }
+  select,
+  #ai-select,
+  #model-select {
+    flex: 1;
+    width: 100%;
+    min-width: auto;
+  }
 
-    .chat-container {
-        padding: 1rem;
-    }
+  .chat-container {
+    padding: 1rem;
+  }
 
-    .input-area {
-        flex-direction: column;
-    }
+  .input-area {
+    flex-direction: column;
+  }
 
-    #send-btn {
-        width: 100%;
-        padding: 1rem;
-    }
+  #send-btn {
+    width: 100%;
+    padding: 1rem;
+  }
 }
 
-.selector-group select {
-    min-width: 220px; /* Better spacing on larger screens */
-}
-
-/* Extra small screens */
 @media (max-width: 480px) {
-    .modal-content {
-        padding: 1.5rem;
-    }
+  .modal-content {
+    padding: 1.5rem;
+  }
 }
