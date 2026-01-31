@@ -65,6 +65,12 @@ body {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    min-width: 260px;          /* ← NEW: reserve space for longest possible label */
+}
+
+#model-select {
+    min-width: 220px;          /* Force consistent width even when disabled/short */
+    width: 220px;              /* Optional: fixed width for zero shift */
 }
 
 .selector-group label {
