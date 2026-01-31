@@ -10,6 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendBtn        = document.getElementById('send-btn');
     const chatHistory    = document.getElementById('chat-history');
     const resetBtn       = document.getElementById('reset-btn');
+        // Add to DOM Elements section
+    const storeBtn      = document.getElementById('store-btn');
+    const storeModal    = document.getElementById('store-modal');
+    const storeWholeBtn = document.getElementById('store-whole-btn');
+    const storeSummaryBtn = document.getElementById('store-summary-btn');
+    const modalCancelBtn = document.getElementById('modal-cancel-btn');
 
     // ── Conversation State ──────────────────────────────────────────────────
     let conversation = []; // Array of { role: "user"|"assistant", content: string }
@@ -184,7 +190,37 @@ I'm a mock response for now.
             renderHistory();
         }
     });
+        // Store Conversation Modal
+    storeBtn.addEventListener('click', () => {
+        if (conversation.length === 0) {
+            alert("Nothing to store yet — start a conversation first!");
+            return;
+        }
+        storeModal.showModal();
+    });
 
+    storeWholeBtn.addEventListener('click', () => {
+        storeModal.close();
+        alert("Whole conversation would be stored with an AI-generated title.\n(Backend storage coming in next tasks)");
+        // Later: call backend endpoint with conversation array + "whole"
+    });
+
+    storeSummaryBtn.addEventListener('click', () => {
+        storeModal.close();
+        alert("Conversation would be summarized by AI and stored.\n(Backend + summarization coming soon)");
+        // Later: call backend with conversation + "summary"
+    });
+
+    modalCancelBtn.addEventListener('click', () => {
+        storeModal.close();
+    });
+
+    // Optional: Close modal when clicking backdrop (nice UX)
+    storeModal.addEventListener('click', (e) => {
+        if (e.target === storeModal) {
+            storeModal.close();
+        }
+    });
     // ── Initialize ──────────────────────────────────────────────────────────
     loadConversation();
 });
