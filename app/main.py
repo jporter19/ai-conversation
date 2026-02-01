@@ -1,41 +1,40 @@
 # app/main.py
-# Purpose: Entry point for our FastAPI application.
-#          Serves static files and will handle API routes later.
-
-import os
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, StreamingResponse   # ← add FileResponse here
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+import httpx
+import json
+from typing import AsyncGenerator, List, Dict
 
-# Calculate absolute path to the project root (one level up from app/)
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ... rest of your file ...
 
-# Path to the frontend folder
-FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
+from app.api.v1 import chat  # import routers later
+from app.config import settings
 
 app = FastAPI(
-    title="AI Conversation Hub",
-    description="Personal tool to chat with Grok or ChatGPT models",
+    title="AI Conversation Hub API",
+    description="Proxy + storage for Grok and ChatGPT",
     version="0.1.0"
 )
 
-# Mount the frontend folder so CSS, JS, images, etc. are accessible
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+# Mount frontend
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    """
-    Serves the main frontend page (index.html) when visiting the root URL.
-    """
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
-    
-    # Optional: You could add error handling here later
-    with open(index_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
-    
-    return HTMLResponse(content=html_content)
+@app.get("/", include_in_schema=False)
+async def serve_frontend():
+    return FileResponse(FRONTEND_DIR / "index.html")
 
-# Optional: Keep the health check
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
+# CORS (for dev)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers later
+app.include_router(chat.router, prefix=f"{settings.API_PREFIX}/v1/chat")
