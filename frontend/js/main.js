@@ -1,234 +1,129 @@
 // frontend/js/main.js
-// Purpose: Client-side logic for AI Conversation Hub
-//          Manages conversation state, renders history, handles input/send/reset
+// Purpose: Entry point — imports modules and wires everything together
 
+import {
+    STORAGE_KEY,
+    STORAGE_AI_KEY,
+    STORAGE_MODEL_KEY,
+    grokModels,
+    openaiModels
+} from './config.js';
+
+import {
+    getConversation,
+    loadConversation,
+    saveConversation,
+    clearConversation,
+    addMessage
+} from './state.js';
+
+import { renderHistory, showWelcome } from './ui.js';
+
+import { initChat } from './chat.js';
+
+// ── DOM Elements ────────────────────────────────────────────────────────────────
+let aiSelect;
+let modelSelect;
+
+function cacheDOMElements() {
+    aiSelect = document.getElementById('ai-select');
+    modelSelect = document.getElementById('model-select');
+
+    if (!aiSelect) console.error('ai-select element not found');
+    if (!modelSelect) console.error('model-select element not found');
+}
+
+// ── Populate model dropdown ─────────────────────────────────────────────────────
+function populateModels(models) {
+    console.log('[populateModels] Called with', models.length, 'models');
+
+    if (!modelSelect) {
+        console.error('[populateModels] modelSelect not found');
+        return;
+    }
+
+    modelSelect.innerHTML = '';
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select model';
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    modelSelect.appendChild(placeholder);
+
+    models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.value;
+        opt.textContent = m.label;
+        modelSelect.appendChild(opt);
+    });
+
+    modelSelect.disabled = false;
+    modelSelect.removeAttribute('disabled'); // Force remove attribute
+    console.log('[populateModels] Dropdown populated — options:', modelSelect.options.length);
+    console.log('[populateModels] Disabled status:', modelSelect.disabled);
+}
+
+// ── AI selection handler ────────────────────────────────────────────────────────
+function handleAIChange(e) {
+    console.log('[handleAIChange] Event fired — new value:', aiSelect.value);
+
+    if (!aiSelect || !modelSelect) {
+        console.error('[handleAIChange] Required elements missing');
+        return;
+    }
+
+    const ai = aiSelect.value.trim();
+
+    if (ai === 'grok') {
+        populateModels(grokModels);
+    } else if (ai === 'chatgpt') {
+        populateModels(openaiModels);
+    } else {
+        modelSelect.innerHTML = '<option value="" selected disabled>Select model after choosing AI</option>';
+        modelSelect.disabled = true;
+        console.log('[handleAIChange] No valid AI — dropdown disabled');
+    }
+
+    localStorage.setItem(STORAGE_AI_KEY, ai);
+    localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || '');
+}
+
+// ── Initialization ───────────────────────────────────────────────────────────────
+function initApp() {
+    console.log('[initApp] Starting initialization');
+
+    cacheDOMElements();
+
+    // Load saved conversation and render
+    loadConversation(renderHistory, showWelcome);
+
+    // Initialize chat actions
+    initChat();
+
+    // Attach AI change listener
+    if (aiSelect) {
+        aiSelect.addEventListener('change', handleAIChange);
+        console.log('[initApp] AI change listener attached');
+    } else {
+        console.error('[initApp] Could not attach listener — aiSelect missing');
+    }
+
+    // Auto-restore saved AI and force population
+    const savedAI = localStorage.getItem(STORAGE_AI_KEY);
+    if (savedAI && aiSelect) {
+        console.log('[initApp] Restoring saved AI:', savedAI);
+        aiSelect.value = savedAI;
+        handleAIChange(); // Force population
+    } else {
+        console.log('[initApp] No saved AI found');
+    }
+
+    console.log('[initApp] Initialization finished');
+}
+
+// ── Run when DOM is ready ───────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    // ── DOM Elements ────────────────────────────────────────────────────────
-    const aiSelect       = document.getElementById('ai-select');
-    const modelSelect    = document.getElementById('model-select');
-    const userInput      = document.getElementById('user-input');
-    const sendBtn        = document.getElementById('send-btn');
-    const chatHistory    = document.getElementById('chat-history');
-    const resetBtn       = document.getElementById('reset-btn');
-        // Add to DOM Elements section
-    const storeBtn      = document.getElementById('store-btn');
-    const storeModal    = document.getElementById('store-modal');
-    const storeWholeBtn = document.getElementById('store-whole-btn');
-    const storeSummaryBtn = document.getElementById('store-summary-btn');
-    const modalCancelBtn = document.getElementById('modal-cancel-btn');
-
-    // ── Conversation State ──────────────────────────────────────────────────
-    let conversation = []; // Array of { role: "user"|"assistant", content: string }
-
-    const STORAGE_KEY = 'ai-conversation-hub-current-chat';
-
-    // ── Model Lists (Jan 2026 snapshot) ─────────────────────────────────────
-    const grokModels = [
-    { value: 'grok-4-1-fast-reasoning',        label: 'Grok 4.1 Fast (Reasoning)' },
-    { value: 'grok-4-1-fast-non-reasoning',    label: 'Grok 4.1 Fast (Non-Reasoning)' },
-    { value: 'grok-code-fast-1',               label: 'Grok Code Fast 1 (Coding-Optimized)' },
-    { value: 'grok-4-fast-reasoning',          label: 'Grok 4 Fast (Reasoning)' },
-    { value: 'grok-4-fast-non-reasoning',      label: 'Grok 4 Fast (Non-Reasoning)' },
-    { value: 'grok-4-0709',                    label: 'Grok 4 (0709 snapshot)' },
-    { value: 'grok-3',                         label: 'Grok 3' },
-    { value: 'grok-3-mini',                    label: 'Grok 3 Mini' },
-    { value: 'grok-2-vision-1212',             label: 'Grok 2 Vision (1212 - Multimodal/Text+Image)' }
-];
-
-    const openaiModels = [
-    { value: 'gpt-5.2',         label: 'GPT-5.2 (Flagship - Best for coding/agentic)' },
-    { value: 'gpt-5.2-pro',     label: 'GPT-5.2 Pro (Extended reasoning)' },
-    { value: 'gpt-5-mini',      label: 'GPT-5 Mini (Faster, cost-efficient)' },
-    { value: 'gpt-5-nano',      label: 'GPT-5 Nano (Fastest, cheapest)' },
-    { value: 'gpt-5',           label: 'GPT-5 (Previous flagship)' }
-];
-
-    // ── Load from localStorage on page load ────────────────────────────────
-    function loadConversation() {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            conversation = JSON.parse(saved);
-            renderHistory();
-        } else {
-            showWelcome();
-        }
-    }
-
-    // ── Save to localStorage ────────────────────────────────────────────────
-    function saveConversation() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
-    }
-
-    // ── Render full chat history ────────────────────────────────────────────
-    function renderHistory() {
-        chatHistory.innerHTML = ''; // Clear
-
-        if (conversation.length === 0) {
-            showWelcome();
-            return;
-        }
-
-        conversation.forEach(msg => {
-            const div = document.createElement('div');
-            div.classList.add('message');
-            div.classList.add(msg.role === 'user' ? 'user-message' : 'ai-message');
-
-            if (msg.role === 'user') {
-                div.textContent = msg.content;
-            } else {
-                const html = marked.parse(msg.content, {
-                    gfm: true,
-                    breaks: true,
-                    headerIds: false
-                });
-                div.innerHTML = html;
-
-                // Highlight code blocks
-                div.querySelectorAll('pre code').forEach(block => {
-                    hljs.highlightElement(block);
-                });
-            }
-
-            chatHistory.appendChild(div);
-        });
-
-        chatHistory.scrollTop = chatHistory.scrollHeight;
-    }
-
-    function showWelcome() {
-        const welcome = document.createElement('div');
-        welcome.className = 'welcome-message';
-        welcome.innerHTML = `
-            <p>Welcome to AI Conversation Hub!</p>
-            <p>Choose an AI and model above, then start typing your message.</p>
-            <p>Conversations are saved in browser storage for now.</p>
-        `;
-        chatHistory.appendChild(welcome);
-    }
-
-    // ── Populate Models (unchanged from before) ─────────────────────────────
-    function populateModels(models) {
-        modelSelect.innerHTML = '';
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Select model';
-        placeholder.disabled = true;
-        placeholder.selected = true;
-        modelSelect.appendChild(placeholder);
-
-        models.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.value;
-            opt.textContent = m.label;
-            modelSelect.appendChild(opt);
-        });
-
-        modelSelect.disabled = false;
-    }
-
-    aiSelect.addEventListener('change', () => {
-        const ai = aiSelect.value;
-        if (ai === 'grok') populateModels(grokModels);
-        else if (ai === 'chatgpt') populateModels(openaiModels);
-        else {
-            modelSelect.innerHTML = '<option value="" selected disabled>Select model after choosing AI</option>';
-            modelSelect.disabled = true;
-        }
-    });
-
-    // ── Send Message ────────────────────────────────────────────────────────
-    function sendMessage() {
-        const text = userInput.value.trim();
-        if (!text) return;
-
-        // Add user message to state
-        conversation.push({ role: 'user', content: text });
-        renderHistory();
-        saveConversation();
-
-        // Clear input
-        userInput.value = '';
-
-        // Mock AI response
-        setTimeout(() => {
-            const hasCodeKeywords = text.toLowerCase().includes('code') ||
-                                    text.toLowerCase().includes('python') ||
-                                    text.toLowerCase().includes('function') ||
-                                    text.toLowerCase().includes('write');
-
-            const mockReply = hasCodeKeywords
-                ? `**Here's a quick example** in Python:
-
-\`\`\`python
-def reverse_string(s):
-    return s[::-1]
-
-print(reverse_string("hello"))  # → olleh
-\`\`\`
-
-You can copy the code block easily. Want me to improve it or add error handling?`
-                : `You said: *${text}*
-
-I'm a mock response for now.
-
-- Bullet point 1
-- Bullet point 2
-
-**Real integration coming soon!**`;
-
-            conversation.push({ role: 'assistant', content: mockReply });
-            renderHistory();
-            saveConversation();
-        }, 800);
-    }
-
-    sendBtn.addEventListener('click', sendMessage);
-
-    userInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    resetBtn.addEventListener('click', () => {
-        if (confirm('Reset the current conversation?')) {
-            conversation = [];
-            localStorage.removeItem(STORAGE_KEY);
-            renderHistory();
-        }
-    });
-        // Store Conversation Modal
-    storeBtn.addEventListener('click', () => {
-        if (conversation.length === 0) {
-            alert("Nothing to store yet — start a conversation first!");
-            return;
-        }
-        storeModal.showModal();
-    });
-
-    storeWholeBtn.addEventListener('click', () => {
-        storeModal.close();
-        alert("Whole conversation would be stored with an AI-generated title.\n(Backend storage coming in next tasks)");
-        // Later: call backend endpoint with conversation array + "whole"
-    });
-
-    storeSummaryBtn.addEventListener('click', () => {
-        storeModal.close();
-        alert("Conversation would be summarized by AI and stored.\n(Backend + summarization coming soon)");
-        // Later: call backend with conversation + "summary"
-    });
-
-    modalCancelBtn.addEventListener('click', () => {
-        storeModal.close();
-    });
-
-    // Optional: Close modal when clicking backdrop (nice UX)
-    storeModal.addEventListener('click', (e) => {
-        if (e.target === storeModal) {
-            storeModal.close();
-        }
-    });
-    // ── Initialize ──────────────────────────────────────────────────────────
-    loadConversation();
+    console.log('[DOMContentLoaded] DOM ready — starting initApp');
+    initApp();
 });

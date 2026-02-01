@@ -4,3 +4,7 @@ __pycache__/
 .env
 *.db
 node_modules/
+git-token.txt
+.pytest_cache/
+alembic.ini
+alembic/env.py  # optional — some people commit it, some don't

@@ -3,16 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-eval' 'unsafe-inline';
+    style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
+    img-src 'self' data:;
+    connect-src 'self';">
     <title>AI Conversation Hub</title>
+
+    <!-- Main stylesheet -->
     <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- Highlight.js theme (github style) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+
+    <!-- Prevent favicon 404 noise (optional but cleans up console) -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body>
     <div class="app-container">
-        <!-- Header: AI & Model selection + buttons -->
+        <!-- Header -->
         <header class="app-header">
             <div class="header-left">
                 <h1>AI Conversation Hub</h1>
             </div>
+
             <div class="header-right">
                 <div class="selector-group">
                     <label for="ai-select">AI:</label>
@@ -22,6 +37,7 @@
                         <option value="chatgpt">ChatGPT (OpenAI)</option>
                     </select>
                 </div>
+
                 <div class="selector-group">
                     <label for="model-select">Model:</label>
                     <select id="model-select" disabled>
@@ -34,15 +50,14 @@
         <!-- Main chat area -->
         <main class="chat-container">
             <div class="chat-history" id="chat-history">
-                <!-- Messages will go here (placeholder for now) -->
-
+                <!-- Messages rendered dynamically -->
             </div>
 
             <!-- Input area -->
             <div class="input-area">
                 <textarea 
                     id="user-input" 
-                    placeholder="Type your message here... (e.g., Write Python code to sort a list)"
+                    placeholder="Type your message here... (Shift+Enter for new line)"
                     rows="4"
                 ></textarea>
                 <button id="send-btn">Send</button>
@@ -55,19 +70,12 @@
             </div>
         </main>
 
+        <!-- Footer -->
         <footer>
-            <p>Local development • HTTP only for now • Powered by FastAPI + your vision</p>
+            <p>Local development • HTTP only for now • Powered by FastAPI</p>
         </footer>
     </div>
-    <!-- Markdown parser - marked.js (very small, fast, secure) -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <!-- Optional but recommended: syntax highlighting for code blocks -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
-
-    <!-- Your main script comes last -->
-    <script src="/static/js/main.js"></script>
     <!-- Store Conversation Modal -->
     <dialog id="store-modal" class="store-modal">
         <div class="modal-content">
@@ -82,5 +90,18 @@
             <button id="modal-cancel-btn" class="modal-btn secondary">Cancel</button>
         </div>
     </dialog>
+
+    <!-- Scripts – correct working CDNs -->
+<!-- markdown-it core -->
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+
+<!-- highlight.js core -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+
+<!-- Highlight.js theme -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+
+<!-- Your main script -->
+<script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
