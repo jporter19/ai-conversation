@@ -1,12 +1,13 @@
 // frontend/js/main.js
 // Purpose: Entry point — imports modules and wires everything together
-
+// At top of main.js, update imports:
 import {
     STORAGE_KEY,
     STORAGE_AI_KEY,
     STORAGE_MODEL_KEY,
     grokModels,
-    openaiModels
+    openaiModels,
+    populateModels   
 } from './config.js';
 
 import {
@@ -28,102 +29,66 @@ let modelSelect;
 function cacheDOMElements() {
     aiSelect = document.getElementById('ai-select');
     modelSelect = document.getElementById('model-select');
-
-    if (!aiSelect) console.error('ai-select element not found');
-    if (!modelSelect) console.error('model-select element not found');
 }
 
-// ── Populate model dropdown ─────────────────────────────────────────────────────
-function populateModels(models) {
-    console.log('[populateModels] Called with', models.length, 'models');
-
-    if (!modelSelect) {
-        console.error('[populateModels] modelSelect not found');
-        return;
-    }
-
-    modelSelect.innerHTML = '';
-
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Select model';
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    modelSelect.appendChild(placeholder);
-
-    models.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.value;
-        opt.textContent = m.label;
-        modelSelect.appendChild(opt);
-    });
-
-    modelSelect.disabled = false;
-    modelSelect.removeAttribute('disabled'); // Force remove attribute
-    console.log('[populateModels] Dropdown populated — options:', modelSelect.options.length);
-    console.log('[populateModels] Disabled status:', modelSelect.disabled);
-}
-
-// ── AI selection handler ────────────────────────────────────────────────────────
-function handleAIChange(e) {
-    console.log('[handleAIChange] Event fired — new value:', aiSelect.value);
-
-    if (!aiSelect || !modelSelect) {
-        console.error('[handleAIChange] Required elements missing');
-        return;
-    }
-
-    const ai = aiSelect.value.trim();
-
-    if (ai === 'grok') {
+// ── Set default AI and model ───────────────────────────────────────────────────
+// Add this function if not present
+function setDefaultSelection() {
+    if (aiSelect) {
+        aiSelect.value = 'grok';
         populateModels(grokModels);
-    } else if (ai === 'chatgpt') {
-        populateModels(openaiModels);
-    } else {
-        modelSelect.innerHTML = '<option value="" selected disabled>Select model after choosing AI</option>';
-        modelSelect.disabled = true;
-        console.log('[handleAIChange] No valid AI — dropdown disabled');
+        if (modelSelect) {
+            modelSelect.value = 'grok-4-1-fast-reasoning';
+        }
+        localStorage.setItem(STORAGE_AI_KEY, 'grok');
+        localStorage.setItem(STORAGE_MODEL_KEY, 'grok-4-1-fast-reasoning');
     }
-
-    localStorage.setItem(STORAGE_AI_KEY, ai);
-    localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || '');
 }
 
 // ── Initialization ───────────────────────────────────────────────────────────────
 function initApp() {
-    console.log('[initApp] Starting initialization');
-
     cacheDOMElements();
 
-    // Load saved conversation and render
+    // Load saved conversation
     loadConversation(renderHistory, showWelcome);
 
     // Initialize chat actions
     initChat();
 
     // Attach AI change listener
-    if (aiSelect) {
-        aiSelect.addEventListener('change', handleAIChange);
-        console.log('[initApp] AI change listener attached');
-    } else {
-        console.error('[initApp] Could not attach listener — aiSelect missing');
-    }
+    aiSelect.addEventListener('change', () => {
+        const ai = aiSelect.value;
+        if (ai === 'grok') {
+            populateModels(grokModels);
+            // Default model for Grok
+            if (!modelSelect.value) modelSelect.value = 'grok-4-1-fast-reasoning';
+        } else if (ai === 'chatgpt') {
+            populateModels(openaiModels);
+        } else {
+            modelSelect.innerHTML = '<option value="" selected disabled>Select model after choosing AI</option>';
+            modelSelect.disabled = true;
+        }
 
-    // Auto-restore saved AI and force population
+        localStorage.setItem(STORAGE_AI_KEY, ai);
+        localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || '');
+    });
+
+    // On first load (no saved AI) or after reset → set defaults
     const savedAI = localStorage.getItem(STORAGE_AI_KEY);
-    if (savedAI && aiSelect) {
-        console.log('[initApp] Restoring saved AI:', savedAI);
-        aiSelect.value = savedAI;
-        handleAIChange(); // Force population
+    if (!savedAI || savedAI === '') {
+        setDefaultSelection();
     } else {
-        console.log('[initApp] No saved AI found');
+        aiSelect.value = savedAI;
+        if (savedAI === 'grok') {
+            populateModels(grokModels);
+            const savedModel = localStorage.getItem(STORAGE_MODEL_KEY);
+            modelSelect.value = savedModel || 'grok-4-1-fast-reasoning';
+        } else if (savedAI === 'chatgpt') {
+            populateModels(openaiModels);
+        }
     }
-
-    console.log('[initApp] Initialization finished');
 }
 
 // ── Run when DOM is ready ───────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('[DOMContentLoaded] DOM ready — starting initApp');
-    initApp();
-});
+document.addEventListener('DOMContentLoaded', initApp);
+

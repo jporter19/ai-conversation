@@ -3,7 +3,7 @@
 
 import { STORAGE_KEY } from './config.js';
 
-let conversation = []; // [{ role: "user"|"assistant", content: string }]
+let conversation = []; // [{ role: "user"|"assistant", content: string, ai?: string }]
 
 export function getConversation() {
     return conversation;
@@ -11,6 +11,7 @@ export function getConversation() {
 
 export function setConversation(newConversation) {
     conversation = newConversation;
+    saveConversation(); // Ensure any set also saves
 }
 
 export function addMessage(message) {
@@ -27,7 +28,26 @@ export function loadConversation(renderCallback, showWelcomeCallback) {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-            conversation = JSON.parse(saved);
+            let parsed = JSON.parse(saved);
+
+            // Backfill ai field for old assistant messages (one-time upgrade)
+            let needsSave = false;
+            parsed = parsed.map(msg => {
+                if (msg.role === 'assistant' && !msg.ai) {
+                    msg.ai = 'grok'; // fallback (change to 'chatgpt' if most old chats were ChatGPT)
+                    needsSave = true;
+                }
+                return msg;
+            });
+
+            conversation = parsed;
+
+            // If we backfilled anything, save the updated version immediately
+            if (needsSave) {
+                console.log('[state.js] Backfilled ai fields — saving updated conversation');
+                saveConversation();
+            }
+
             renderCallback();
         } else {
             showWelcomeCallback();
@@ -42,7 +62,8 @@ export function loadConversation(renderCallback, showWelcomeCallback) {
 export function saveConversation() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
+        console.log('[state.js] Conversation saved successfully');
     } catch (e) {
-        console.warn('localStorage save failed:', e);
+        console.warn('[state.js] localStorage save failed:', e);
     }
 }

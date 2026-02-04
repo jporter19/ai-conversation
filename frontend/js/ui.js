@@ -31,10 +31,50 @@ export function renderHistory() {
         div.classList.add('message');
         div.classList.add(msg.role === 'user' ? 'user-message' : 'ai-message');
 
+        // Add AI badge for assistant messages
+        if (msg.role === 'assistant' && msg.ai) {
+            const badge = document.createElement('div');
+            badge.className = 'ai-badge';
+
+            const aiName = msg.ai;
+            badge.textContent = aiName.toUpperCase();
+            badge.style.backgroundColor = aiName === 'grok' ? '#1a535c' : '#10a37f';
+            badge.style.color = 'white';
+
+            div.prepend(badge);
+        }
+
         if (msg.role === 'user') {
-            div.textContent = msg.content;
-        } else {
-            // Use global markdownit from CDN + direct highlight.js
+            const md = markdownit({
+                html: true,
+                linkify: true,
+                typographer: true,
+                // No need for highlight here unless you want code highlighting in user messages
+            });
+
+            let rendered = md.render(msg.content);
+
+            // Optional: same image detection logic as assistant if you want
+            const imageUrl = msg.content.trim();
+            if (imageUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif|webp)$/i)) {
+                rendered = `<img src="${imageUrl}" alt="User uploaded image" loading="eager" style="max-width:100%; border-radius:8px;">`;
+            }
+
+            div.innerHTML = rendered;
+            div.querySelectorAll('a').forEach(link => {
+                link.target = '_blank';                     // Open in new tab
+                link.rel = 'noopener noreferrer';           // Security best practice
+                link.style.color = 'var(--primary)';        // Optional: match your primary color
+                link.style.textDecoration = 'underline';    // Ensure visible
+            });
+            // Make images clickable (same as assistant)
+            div.querySelectorAll('img').forEach(img => {
+                img.addEventListener('click', () => {
+                    window.open(img.src, '_blank');
+                });
+            });
+        }
+         else {
             const md = markdownit({
                 html: true,
                 linkify: true,
@@ -49,12 +89,32 @@ export function renderHistory() {
                             console.warn('[ui.js] Highlight failed for language:', lang, e);
                         }
                     }
-                    // Fallback: plain escaped code block
                     return '<pre><code>' + md.utils.escapeHtml(str) + '</code></pre>';
                 }
             });
 
-            div.innerHTML = md.render(msg.content);
+            let rendered = md.render(msg.content);
+
+            // If content is a plain image URL, render as img
+            const imageUrl = msg.content.trim();
+            if (imageUrl.match(/^https?:\/\/.*\.(png|jpg|jpeg|gif|webp)$/i)) {
+                rendered = `<img src="${imageUrl}" alt="AI generated image" loading="eager" style="max-width:100%; border-radius:8px;">`;
+            }
+
+            div.innerHTML = rendered;
+            div.querySelectorAll('a').forEach(link => {
+                link.target = '_blank';                     // Open in new tab
+                link.rel = 'noopener noreferrer';           // Security best practice
+                link.style.color = 'var(--primary)';        // Optional: match your primary color
+                link.style.textDecoration = 'underline';    // Ensure visible
+            });
+
+            // Make images clickable to open full size
+            div.querySelectorAll('img').forEach(img => {
+                img.addEventListener('click', () => {
+                    window.open(img.src, '_blank');
+                });
+            });
         }
 
         chatHistory.appendChild(div);
