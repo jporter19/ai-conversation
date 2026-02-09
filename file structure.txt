@@ -1,0 +1,52 @@
+alembic.ini
+.env
+.gitignore
+venv/
+utils/
+tests/
+alembic/
+app/
+├── __init__.py
+├── main.py                   # ← thin entry point: app creation + middleware + mounts
+├── config.py                 # settings, env variables, constants
+├── dependencies.py           # shared dependencies (db session, auth, etc.)
+├── api/                      # all API routes (routers)
+│   ├── __init__.py
+│   ├── v1/
+│   │   ├── __init__.py
+│   │   ├── chat.py           # /api/chat streaming endpoint
+│   │   ├── conversations.py  # store/load conversations, summary endpoint
+│   │   └── projects.py       # project CRUD endpoints (later)
+│   └── deps.py               # route dependencies (optional)
+├── core/
+│   ├── security.py           # future auth helpers (JWT, etc.)
+│   └── exceptions.py         # custom exceptions
+├── db/
+│   ├── __init__.py
+│   ├── base.py               # declarative base for SQLAlchemy models
+│   ├── session.py            # database session management
+│   └── models/
+│       ├── __init__.py
+│       ├── conversation.py   # Conversation table
+│       └── project.py        # Project table (later)
+├── schemas/                  # Pydantic models for request/response
+│   ├── __init__.py
+│   ├── chat.py
+│   └── conversation.py
+└── services/                 # business logic (optional but recommended later)
+    ├── __init__.py
+    └── summarization.py      # AI summarization logic
+
+frontend/
+├── index.html                      ← Index.html
+├── assets/
+│       └── libby_catch.jpg         ← testing image
+├── css/
+│       └── style.css               ← style sheet
+└── js/
+       ├── main.js                 ← only imports + initial wiring + global event listeners
+       ├── config.js               ← constants, model lists, storage keys
+       ├── state.js                ← conversation array + load/save functions
+       ├── ui.js                   ← DOM cache + render functions (renderHistory, showWelcome)
+       ├── selectors.js            ← AI/model dropdown logic + event listeners
+       └── chat.js                 ← sendMessage (including streaming) + reset logic

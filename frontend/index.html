@@ -4,15 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Conversation Hub</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+
+    <!-- CSP to allow markdown-it/highlight.js dynamic code -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline' 'unsafe-eval';
+        style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
+        img-src 'self' data: https:;
+        connect-src 'self' http://127.0.0.1:8000;">
+
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">    <!-- Prevent favicon 404 noise -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body>
     <div class="app-container">
-        <!-- Header: AI & Model selection + buttons -->
+        <!-- Header -->
         <header class="app-header">
             <div class="header-left">
                 <h1>AI Conversation Hub</h1>
             </div>
+
             <div class="header-right">
                 <div class="selector-group">
                     <label for="ai-select">AI:</label>
@@ -22,6 +34,7 @@
                         <option value="chatgpt">ChatGPT (OpenAI)</option>
                     </select>
                 </div>
+
                 <div class="selector-group">
                     <label for="model-select">Model:</label>
                     <select id="model-select" disabled>
@@ -34,15 +47,14 @@
         <!-- Main chat area -->
         <main class="chat-container">
             <div class="chat-history" id="chat-history">
-                <!-- Messages will go here (placeholder for now) -->
-
+                <!-- Messages rendered dynamically -->
             </div>
 
             <!-- Input area -->
             <div class="input-area">
                 <textarea 
                     id="user-input" 
-                    placeholder="Type your message here... (e.g., Write Python code to sort a list)"
+                    placeholder="Type your message here... (Shift+Enter for new line)"
                     rows="4"
                 ></textarea>
                 <button id="send-btn">Send</button>
@@ -55,19 +67,23 @@
             </div>
         </main>
 
+        <!-- Footer -->
         <footer>
-            <p>Local development • HTTP only for now • Powered by FastAPI + your vision</p>
+            <p>Local development • HTTP only for now • Powered by FastAPI</p>
         </footer>
     </div>
-    <!-- Markdown parser - marked.js (very small, fast, secure) -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Reset Confirmation Modal -->
+    <dialog id="reset-modal" class="store-modal">
+        <div class="modal-content">
+            <h2>Reset Conversation</h2>
+            <p>Are you sure you want to reset the current conversation? This cannot be undone.</p>
 
-    <!-- Optional but recommended: syntax highlighting for code blocks -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
-
-    <!-- Your main script comes last -->
-    <script src="/static/js/main.js"></script>
+            <div class="modal-options">
+                <button id="reset-confirm-btn" class="modal-btn primary">Yes, Reset</button>
+                <button id="reset-cancel-btn" class="modal-btn secondary">Cancel</button>
+            </div>
+        </div>
+    </dialog>
     <!-- Store Conversation Modal -->
     <dialog id="store-modal" class="store-modal">
         <div class="modal-content">
@@ -82,5 +98,67 @@
             <button id="modal-cancel-btn" class="modal-btn secondary">Cancel</button>
         </div>
     </dialog>
+    <!-- No Model Selected Modal -->
+    <dialog id="no-model-modal" class="store-modal">
+        <div class="modal-content">
+            <h2>Select a Model</h2>
+            <p>Please select a model from the dropdown before sending a message.</p>
+
+            <div class="modal-options">
+                <button id="no-model-ok-btn" class="modal-btn primary">OK</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Scripts – correct working CDNs -->
+<!-- markdown-it core -->
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js"></script>
+
+<!-- highlight.js core -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+
+<!-- Highlight.js theme -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+<!-- Custom tooltip for model dropdown -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modelSelect = document.getElementById('model-select');
+    const tooltip = document.createElement('div');
+    tooltip.id = 'model-tooltip';
+    tooltip.style.position = 'absolute';
+    tooltip.style.background = '#333';
+    tooltip.style.color = 'white';
+    tooltip.style.padding = '8px 12px';
+    tooltip.style.borderRadius = '6px';
+    tooltip.style.fontSize = '0.9rem';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.zIndex = '1000';
+    tooltip.style.maxWidth = '300px';
+    tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    tooltip.style.opacity = '0';
+    tooltip.style.transition = 'opacity 0.2s';
+    document.body.appendChild(tooltip);
+
+    modelSelect.addEventListener('mouseover', (e) => {
+        const selectedOption = modelSelect.options[modelSelect.selectedIndex];
+        if (selectedOption && selectedOption.dataset.tooltip) {
+            tooltip.textContent = selectedOption.dataset.tooltip;
+            tooltip.style.opacity = '1';
+            tooltip.style.left = e.clientX + 15 + 'px';
+            tooltip.style.top = e.clientY + 15 + 'px';
+        }
+    });
+
+    modelSelect.addEventListener('mouseout', () => {
+        tooltip.style.opacity = '0';
+    });
+
+    modelSelect.addEventListener('mousemove', (e) => {
+        tooltip.style.left = e.clientX + 15 + 'px';
+        tooltip.style.top = e.clientY + 15 + 'px';
+    });
+});
+</script>
+<!-- Your main script -->
+<script type="module" src="/js/main.js"></script>
 </body>
 </html>

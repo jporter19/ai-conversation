@@ -85,7 +85,7 @@ select {
   width: 220px; /* Fixed width prevents layout shift on selection */
 }
 
-select:disabled {
+/* select:disabled {
   background: #f0f0f0;
   color: #aaa;
   cursor: not-allowed;
@@ -192,14 +192,21 @@ select:disabled {
   border-bottom-left-radius: 4px;
 }
 
-.message pre,
+/* Block code — dark background, bright letters from Dracula theme */
+.message pre {
+    background: #090909;               /* Very dark purple-gray */
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    border: 1px solid var(--border);
+}
 .message code {
-  background: #2d2d2d;
-  color: #e6e6e6;
-  padding: 0.8rem;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-family: 'Consolas', 'Courier New', monospace;
+    background: rgba(255, 255, 255, 0.1);
+    color: #f8f8f2;                    /* Bright off-white */
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.95em;
 }
 
 /* Footer */
@@ -330,3 +337,81 @@ footer {
     padding: 1.5rem;
   }
 }
+/* AI badge on assistant messages */
+.ai-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    margin-right: 0.6rem;
+    margin-bottom: 0.3rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.ai-message .ai-badge {
+    float: left;
+    clear: left;
+}
+/* Force images to load in Brave */
+img {
+    loading: eager !important;
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+}
+/* Custom hover tooltip for model dropdown options */
+select option[data-tooltip] {
+    position: relative;
+}
+
+select option[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    max-width: 300px;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    margin-bottom: 8px;
+    text-align: center;
+}
+/* Force images to load immediately in Brave & improve display */
+.message img {
+    loading: eager !important;         /* Force load, bypass lazy */
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    cursor: pointer;                   /* Clickable for full view */
+}
+img { max-height: 400px; }
+
+.message pre .hljs,.message pre code {
+    background: transparent;
+    padding: 0;
+    color: #f8f8f2 !important;         /* Bright off-white — overrides theme if needed */
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+/* Light message bubbles — force dark text for inline code */
+.ai-message code,
+.user-message code,
+.ai-message .hljs,
+.user-message .hljs {
+    color: var(--text-dark) !important;     /* Dark text for readability */
+    background: rgba(0, 0, 0, 0.08);        /* Subtle gray background */
+}
+
