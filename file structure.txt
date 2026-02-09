@@ -1,3 +1,10 @@
+alembic.ini
+.env
+.gitignore
+venv/
+utils/
+tests/
+alembic/
 app/
 ├── __init__.py
 ├── main.py                   # ← thin entry point: app creation + middleware + mounts
@@ -30,11 +37,16 @@ app/
     ├── __init__.py
     └── summarization.py      # AI summarization logic
 
-
-frontend/js/
-├── main.js                 ← only imports + initial wiring + global event listeners
-├── config.js               ← constants, model lists, storage keys
-├── state.js                ← conversation array + load/save functions
-├── ui.js                   ← DOM cache + render functions (renderHistory, showWelcome)
-├── selectors.js            ← AI/model dropdown logic + event listeners
-└── chat.js                 ← sendMessage (including streaming) + reset logic
+frontend/
+├── index.html                      ← Index.html
+├── assets/
+│       └── libby_catch.jpg         ← testing image
+├── css/
+│       └── style.css               ← style sheet
+└── js/
+       ├── main.js                 ← only imports + initial wiring + global event listeners
+       ├── config.js               ← constants, model lists, storage keys
+       ├── state.js                ← conversation array + load/save functions
+       ├── ui.js                   ← DOM cache + render functions (renderHistory, showWelcome)
+       ├── selectors.js            ← AI/model dropdown logic + event listeners
+       └── chat.js                 ← sendMessage (including streaming) + reset logic

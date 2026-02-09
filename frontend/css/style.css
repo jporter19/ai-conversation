@@ -400,9 +400,18 @@ select option[data-tooltip]:hover::after {
 }
 img { max-height: 400px; }
 
-.message pre code {
+.message pre .hljs,.message pre code {
     background: transparent;
     padding: 0;
     color: #f8f8f2 !important;         /* Bright off-white — overrides theme if needed */
     font-family: 'Consolas', 'Courier New', monospace;
 }
+/* Light message bubbles — force dark text for inline code */
+.ai-message code,
+.user-message code,
+.ai-message .hljs,
+.user-message .hljs {
+    color: var(--text-dark) !important;     /* Dark text for readability */
+    background: rgba(0, 0, 0, 0.08);        /* Subtle gray background */
+}
+
