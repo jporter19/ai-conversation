@@ -191,15 +191,15 @@
             <!-- Add API wizard (primary) — conversational discover -->
             <div id="admin-panel-add" class="admin-panel active">
                 <p class="admin-muted">
-                    Describe what you want in plain language. We’ll find the provider &amp; model,
-                    reuse an existing key when possible, test it, and enable the model if everything checks out.
-                    Examples: <em>“Grok speech to text”</em>, <em>“OpenAI whisper”</em>, <em>“Groq Llama 8B”</em>
+                    Type what to add (e.g. <em>add ChatGPT</em> or <em>add Grok</em>).
+                    We’ll ask for the API key, load models, and update My APIs / Keys / Models / the main AI list.
+                    For a single model: <em>Grok speech to text</em>, <em>OpenAI whisper</em>.
                 </p>
 
                 <div class="wizard-card">
                     <h3>What do you want to add?</h3>
                     <textarea id="setup-description" class="setup-textarea" rows="3"
-                        placeholder="e.g. What’s Grok’s speech to text API?"></textarea>
+                        placeholder="e.g. add ChatGPT"></textarea>
                     <div class="wizard-actions">
                         <button type="button" id="setup-discover-btn" class="modal-btn primary">Find &amp; add</button>
                         <button type="button" id="setup-reset-btn" class="modal-btn secondary">Reset</button>
@@ -223,13 +223,14 @@
                 <div class="wizard-card" id="setup-key-card" hidden>
                     <h3>API key needed</h3>
                     <p class="admin-muted" id="setup-key-help">
-                        Paste a key for this provider, then click <strong>Find &amp; add</strong> again.
-                        If you already saved this key under API Keys, leave this blank.
+                        Paste the provider key, then click <strong>Save key &amp; add</strong>.
+                        We test the key, store it, load models, and refresh every admin screen.
                     </p>
                     <div class="admin-key-actions">
                         <input type="password" id="setup-api-key" class="admin-key-input"
-                               placeholder="Paste API key (optional if already saved)…"
+                               placeholder="Paste API key…"
                                autocomplete="off" spellcheck="false" />
+                        <button type="button" id="setup-apply-key-btn" class="modal-btn primary">Save key &amp; add</button>
                         <button type="button" id="setup-test-btn" class="modal-btn secondary">Test key only</button>
                     </div>
                 </div>
@@ -277,10 +278,8 @@
             <!-- My APIs (providers overview) -->
             <div id="admin-panel-apis" class="admin-panel">
                 <p class="admin-muted">
-                    Each AI is listed here with its key status.
-                    <strong>Remove</strong> hides it from the main AI dropdown (built-ins are disabled, not erased).
-                    <strong>Enable</strong> brings a disabled AI back.
-                    <strong>YouTube Transcripts</strong> does not need a key for public captions.
+                    Only APIs with an <strong>active key</strong> (or key-optional tools like YouTube) appear here and in the main AI dropdown.
+                    <strong>Remove</strong> permanently deletes the API (and its key if unused). Re-add anytime via Add API.
                 </p>
                 <div id="admin-providers-list" class="admin-list"></div>
             </div>
@@ -288,9 +287,8 @@
             <!-- API Keys -->
             <div id="admin-panel-keys" class="admin-panel">
                 <p class="admin-muted">
-                    Keys are stored in <code>app/data/secrets.json</code> (not committed to git).
-                    Every configured API appears here — including ones you just added.
-                    Optional keys (e.g. YouTube) are labeled.
+                    Update keys for APIs you already added. Stored in <code>app/data/secrets.json</code> (not in git).
+                    To add a brand-new API, use <strong>Add API</strong> instead.
                 </p>
                 <div id="admin-keys-list"></div>
                 <button type="button" id="admin-save-keys-btn" class="modal-btn primary">Save API Keys</button>
@@ -298,11 +296,18 @@
 
             <!-- Models -->
             <div id="admin-panel-models" class="admin-panel">
-                <p class="admin-muted">Add extra model ids to an existing API (after the API itself is set up under Add API).</p>
+                <p class="admin-muted">
+                    All models for each active API, with tags (flagship, fast, cheap, deepthink, images, …)
+                    and AI keep/remove recommendations. Specialized models and one cheap effective model are kept;
+                    superseded chat models are flagged for removal.
+                </p>
                 <div class="admin-form-row">
                     <label>API
                         <select id="admin-model-provider"></select>
                     </label>
+                    <button type="button" id="admin-recommend-models-btn" class="modal-btn secondary">
+                        AI tag &amp; recommend
+                    </button>
                 </div>
                 <div id="admin-models-list" class="admin-list"></div>
                 <div class="admin-form-grid">
@@ -342,8 +347,16 @@
 
             <!-- Auto-update -->
             <div id="admin-panel-update" class="admin-panel">
-                <p class="admin-muted">Refresh model lists for major AIs that support auto-update (Grok / ChatGPT). Requires their API keys.</p>
-                <button type="button" id="admin-auto-update-btn" class="modal-btn primary">Auto-Update All Models</button>
+                <p class="admin-muted">
+                    Refresh model lists for AIs with auto-update (Grok / ChatGPT). Requires active keys.
+                    Also updates the <strong>default model</strong> when a newer flagship appears
+                    (e.g. Grok 4.5 → Grok 4.6), and researches short “what it’s good for” descriptions.
+                </p>
+                <div class="wizard-actions">
+                    <button type="button" id="admin-auto-update-btn" class="modal-btn primary">Auto-Update All Models</button>
+                    <button type="button" id="admin-enrich-desc-btn" class="modal-btn secondary">Refresh model descriptions</button>
+                    <button type="button" id="admin-recommend-all-btn" class="modal-btn secondary">AI tag &amp; recommend all</button>
+                </div>
             </div>
 
             <!-- Preferences -->
@@ -374,45 +387,10 @@
 
 <!-- Highlight.js theme -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
-<!-- Custom tooltip for model dropdown -->
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const modelSelect = document.getElementById('model-select');
-    const tooltip = document.createElement('div');
-    tooltip.id = 'model-tooltip';
-    tooltip.style.position = 'absolute';
-    tooltip.style.background = '#333';
-    tooltip.style.color = 'white';
-    tooltip.style.padding = '8px 12px';
-    tooltip.style.borderRadius = '6px';
-    tooltip.style.fontSize = '0.9rem';
-    tooltip.style.pointerEvents = 'none';
-    tooltip.style.zIndex = '1000';
-    tooltip.style.maxWidth = '300px';
-    tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-    tooltip.style.opacity = '0';
-    tooltip.style.transition = 'opacity 0.2s';
-    document.body.appendChild(tooltip);
-
-    modelSelect.addEventListener('mouseover', (e) => {
-        const selectedOption = modelSelect.options[modelSelect.selectedIndex];
-        if (selectedOption && selectedOption.dataset.tooltip) {
-            tooltip.textContent = selectedOption.dataset.tooltip;
-            tooltip.style.opacity = '1';
-            tooltip.style.left = e.clientX + 15 + 'px';
-            tooltip.style.top = e.clientY + 15 + 'px';
-        }
-    });
-
-    modelSelect.addEventListener('mouseout', () => {
-        tooltip.style.opacity = '0';
-    });
-
-    modelSelect.addEventListener('mousemove', (e) => {
-        tooltip.style.left = e.clientX + 15 + 'px';
-        tooltip.style.top = e.clientY + 15 + 'px';
-    });
-});
+<!-- Model dropdown description tooltip (selected / hovered model) -->
+<script type="module">
+import { initModelTooltips } from '/js/model_tooltip.js';
+document.addEventListener('DOMContentLoaded', () => initModelTooltips());
 </script>
 <!-- Your main script -->
 <script type="module" src="/js/main.js"></script>

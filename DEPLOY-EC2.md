@@ -1,6 +1,9 @@
 # Deploy AI Conversation Hub on EC2
 
-Phase 1 hosting: single **t3.micro**, nginx reverse proxy, **in-app login** (shared hub account), durable data on the instance. Friends reach the host over **VPN**; security group allows HTTP only from trusted IPs (not the open internet).
+> **Preferred host is now Amazon Lightsail** — see [`DEPLOY-LIGHTSAIL.md`](DEPLOY-LIGHTSAIL.md)  
+> (`ai-hub` @ `54.175.0.107`, ~$7/mo). This EC2 doc is kept for the legacy instance until it is stopped.
+
+Phase 1 hosting (legacy): single **t3.micro**, nginx reverse proxy, **in-app login** (shared hub account), durable data on the instance.
 
 ## Architecture
 

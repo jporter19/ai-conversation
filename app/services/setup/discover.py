@@ -179,29 +179,38 @@ async def discover_setup(
                 proposal,
                 api_key=pasted,
                 run_test=False,  # already tested
+                refresh_remote_models=True,
             )
             result["applied"] = True
             result["status"] = "applied"
             result["provider"] = applied.get("provider")
             result["catalog"] = applied.get("catalog")
             result["key_saved"] = applied.get("key_saved")
-            model_val = (proposal.get("models") or [{}])[0].get("value")
-            msgs.append(
-                f"Saved and enabled. Model `{model_val}` is now available under "
-                f"**{proposal.get('label')}**."
-            )
-            if (proposal.get("models") or [{}])[0].get("capability") in ("stt", "tts"):
+            prov = applied.get("provider") or {}
+            n_models = len(prov.get("models") or [])
+            label = proposal.get("label") or prov.get("label") or proposal.get("id")
+            if proposal.get("whole_provider"):
                 msgs.append(
-                    "Note: speech models are in the catalog; the chat panel does not "
-                    "yet upload audio — they are ready for future audio tools / API use."
+                    f"Saved **{label}** with {n_models} model(s). "
+                    "It appears under My APIs, Models, and the main AI list."
                 )
+            else:
+                model_val = (proposal.get("models") or [{}])[0].get("value")
+                msgs.append(
+                    f"Saved and enabled. Model `{model_val}` is available under **{label}** "
+                    f"({n_models} model(s) total)."
+                )
+            if applied.get("refresh_message"):
+                msgs.append(str(applied["refresh_message"]))
+            if applied.get("key_saved"):
+                msgs.append("API key stored.")
         except Exception as e:
             result["applied"] = False
             result["status"] = "ready"
             msgs.append(f"Could not save yet: {e}")
     elif can_apply and not has_key:
         result["status"] = "ready"
-        # leave unapplied
+        # leave unapplied — UI shows key card
 
     # Join sentences cleanly
     cleaned = []

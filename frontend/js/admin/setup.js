@@ -6,8 +6,13 @@ import {
     lastProposal,
     setLastProposal,
     refreshCatalogUI,
+    switchTab,
 } from './shared.js';
 import { testKey } from './panels.js';
+
+/** Shared multi-turn wizard state */
+let setupAnswers = {};
+let setupHistory = [];
 
 export function plainMsg(s) {
     return String(s || '').replace(/\*\*/g, '');
@@ -177,11 +182,21 @@ export function renderDiscoverResult(data) {
         }
     }
 
-    // Show key card when ready but no key / test failed needing new key
+    // Show key card when we need a key or test failed
     const needKey = status === 'ready'
         && data.proposal
         && (!data.key?.configured || (data.test && !data.test.ok));
-    showEl('setup-key-card', !!needKey || status === 'ready');
+    showEl('setup-key-card', !!needKey);
+    if (needKey) {
+        const help = document.getElementById('setup-key-help');
+        const keyName = data.proposal?.api_key_name || data.key?.name || 'API key';
+        if (help) {
+            help.innerHTML = `Paste your <code>${escapeHtml(keyName)}</code> key for `
+                + `<strong>${escapeHtml(data.proposal?.label || 'this API')}</strong>, then `
+                + `<strong>Save key &amp; add</strong>.`;
+        }
+        document.getElementById('setup-api-key')?.focus();
+    }
 
     if (data.proposal) fillProposalForm(data.proposal);
 
@@ -193,11 +208,14 @@ export function renderDiscoverResult(data) {
     }
 
     if (status === 'applied') {
-        setStatus(plainMsg(data.message) || 'Model added and ready.', false);
+        setStatus(plainMsg(data.message) || 'API added and ready.', false);
     } else if (status === 'needs_clarification') {
         setStatus(plainMsg(data.message) || 'Please answer the questions above.', false);
     } else if (status === 'ready') {
-        setStatus(plainMsg(data.message) || 'Proposal ready.', !data.test?.ok && data.key && !data.key.configured);
+        setStatus(
+            plainMsg(data.message) || 'Proposal ready.',
+            !!(needKey || (data.test && !data.test.ok)),
+        );
     } else {
         setStatus(plainMsg(data.message) || 'Something went wrong', true);
     }
@@ -275,8 +293,13 @@ export async function runDiscover({ fromAnswer = false } = {}) {
 
         if (data.status === 'applied') {
             await refreshCatalogUI();
-            // Clear answers after success so a new request starts clean
             setupAnswers = {};
+            // Clear pasted key after success
+            const keyInp = document.getElementById('setup-api-key');
+            if (keyInp) keyInp.value = '';
+            showEl('setup-key-card', false);
+            // Land on My APIs so the user sees the new API
+            switchTab('apis');
         }
     } catch (e) {
         setStatus(String(e.message || e), true);
@@ -291,19 +314,24 @@ export async function runDiscover({ fromAnswer = false } = {}) {
             btn.disabled = false;
             btn.textContent = 'Find & add';
         }
+        const applyKeyBtn = document.getElementById('setup-apply-key-btn');
+        if (applyKeyBtn) {
+            applyKeyBtn.disabled = false;
+            applyKeyBtn.textContent = 'Save key & add';
+        }
     }
 }
 
 export async function loadPresetChips() {
     const host = document.getElementById('setup-preset-chips');
     if (!host) return;
-    // Quick-start examples (capability-oriented), not just vendor names
     const examples = [
+        { label: 'Add ChatGPT', value: 'add ChatGPT' },
+        { label: 'Add Grok', value: 'add Grok' },
+        { label: 'Add Groq', value: 'add Groq' },
         { label: 'Grok speech to text', value: 'Grok speech to text' },
-        { label: 'Grok image gen', value: 'Grok image generation' },
         { label: 'OpenAI Whisper', value: 'OpenAI whisper speech to text' },
-        { label: 'Groq Llama 8B', value: 'Groq Llama 8B' },
-        { label: 'Magisterium', value: 'Magisterium AI chat' },
+        { label: 'Magisterium', value: 'add Magisterium' },
     ];
     host.innerHTML = '';
     examples.forEach(ex => {

@@ -124,11 +124,35 @@ export function populateModels(models, selectedValue) {
     placeholder.dataset.tooltip = 'Choose a model after selecting an AI';
     modelSelect.appendChild(placeholder);
 
-    (models || []).forEach(m => {
+    // Prefer keep/flagship first in the main dropdown
+    const recOrder = { keep: 0, review: 1, remove: 2 };
+    const ordered = [...(models || [])]
+        .filter(m => m.recommendation !== 'remove') // hide remove-recommended from main picker
+        .sort((a, b) => {
+            const ra = recOrder[a.recommendation] ?? 1;
+            const rb = recOrder[b.recommendation] ?? 1;
+            if (ra !== rb) return ra - rb;
+            const fa = (a.tags || []).includes('flagship') ? 0 : 1;
+            const fb = (b.tags || []).includes('flagship') ? 0 : 1;
+            if (fa !== fb) return fa - fb;
+            return 0;
+        });
+
+    ordered.forEach(m => {
         const opt = document.createElement('option');
         opt.value = m.value;
-        opt.textContent = m.label || m.value;
-        opt.dataset.tooltip = m.tooltip || m.capability || 'No description available';
+        const tagBits = (m.tags || []).slice(0, 3).join(', ');
+        opt.textContent = tagBits
+            ? `${m.label || m.value} · ${tagBits}`
+            : (m.label || m.value);
+        const desc = (m.description || m.tooltip || '').trim()
+            || (m.capability ? `${m.capability} model` : 'No description available');
+        const reason = (m.recommendation_reason || '').trim();
+        const tip = reason ? `${desc}\n\n${reason}` : desc;
+        opt.dataset.tooltip = tip;
+        opt.dataset.description = desc;
+        opt.dataset.tags = (m.tags || []).join(',');
+        opt.title = tip;
         modelSelect.appendChild(opt);
     });
 
@@ -138,5 +162,7 @@ export function populateModels(models, selectedValue) {
         modelSelect.value = selectedValue;
     }
 
-    console.log('[populateModels] Dropdown populated and enabled');
+    // Keep select.title in sync with the highlighted / selected model
+    const sel = modelSelect.options[modelSelect.selectedIndex];
+    modelSelect.title = (sel?.dataset?.tooltip || sel?.title || '').trim();
 }

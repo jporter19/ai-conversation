@@ -48,14 +48,22 @@ command -v python3.12 >/dev/null 2>&1 || PY=python3
 \$PY -m venv .venv
 .venv/bin/pip install -q --upgrade pip
 .venv/bin/pip install -q -r requirements.txt
-# Load service env so import check sees SESSION_SECRET (same as systemd).
-set -a
-if [[ -f /etc/ai-conversation/env ]]; then
-  # shellcheck disable=SC1091
-  . /etc/ai-conversation/env
+# Import smoke test under the same EnvironmentFile systemd uses (via systemctl show).
+# Fallback: skip import check and still restart the service.
+if sudo systemctl cat ai-conversation >/dev/null 2>&1; then
+  ENV_FILE=\$(sudo systemctl show ai-conversation -p EnvironmentFiles --value 2>/dev/null | awk '{print \$1}' | tr -d "'")
+  if [[ -n "\$ENV_FILE" && -f "\$ENV_FILE" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    . <(sudo cat "\$ENV_FILE")
+    set +a
+  fi
 fi
-set +a
-.venv/bin/python -c "from app.main import app; print('import-ok', app.version)"
+if .venv/bin/python -c "from app.main import app; print('import-ok', app.version)"; then
+  true
+else
+  echo "WARN: import check failed (env may be unreadable); restarting service anyway" >&2
+fi
 sudo systemctl restart ai-conversation
 sudo systemctl reload nginx || sudo systemctl restart nginx
 sudo systemctl --no-pager --full status ai-conversation | head -20

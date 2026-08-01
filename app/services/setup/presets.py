@@ -65,14 +65,17 @@ PRESETS: List[Dict[str, Any]] = [
     },
     {
         "id": "openai",
-        "label": "OpenAI / ChatGPT",
+        "label": "ChatGPT (OpenAI)",
         "base_url": "https://api.openai.com/v1",
         "api_key_name": "OPENAI_API_KEY",
         "key_test": "auto",
         "supports_tools": True,
         "supports_image_gen": True,
+        "auto_update": True,
+        "auto_update_source": "openai",
+        "image_api": "openai",
         "badge_color": "#10a37f",
-        "keywords": ["openai", "chatgpt", "gpt", "whisper"],
+        "keywords": ["openai", "chatgpt", "gpt", "whisper", "chat gpt"],
         "models": [
             {
                 "value": "gpt-4o",
@@ -128,8 +131,12 @@ PRESETS: List[Dict[str, Any]] = [
         "key_test": "auto",
         "supports_tools": True,
         "supports_image_gen": True,
+        "auto_update": True,
+        "auto_update_source": "xai",
+        "image_api": "xai",
         "badge_color": "#1a535c",
         "keywords": ["xai", "x.ai", "grok"],
+        "maps_to_existing": "grok",
         "models": [
             {
                 "value": "grok-4.5",

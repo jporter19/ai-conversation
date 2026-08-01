@@ -3,10 +3,13 @@
 # Prerequisites: Cloudflare (or other DNS) A record → Elastic IP; ports 80/443 open.
 set -euo pipefail
 
-DOMAIN="${DOMAIN:-porterfamily.us}"
-EIP="${EIP:-44.208.175.27}"
-KEY="${DEPLOY_KEY:-$HOME/.ssh/grok-small-ec2.pem}"
+# Defaults target Lightsail hub (see DEPLOY-LIGHTSAIL.md). Override for EC2 if needed.
+DOMAIN="${DOMAIN:-www.porterfamily.us}"
+EIP="${EIP:-54.175.0.107}"
+KEY="${DEPLOY_KEY:-$HOME/.ssh/lightsail-ai-hub.pem}"
 HOST="${DEPLOY_HOST:-$EIP}"
+# Also accept apex when DOMAIN is www
+APEX_DOMAIN="${APEX_DOMAIN:-porterfamily.us}"
 
 echo "Checking DNS for ${DOMAIN} → ${EIP}"
 CF=$(curl -fsS --max-time 10 "https://cloudflare-dns.com/dns-query?name=${DOMAIN}&type=A" \
@@ -15,17 +18,28 @@ CF=$(curl -fsS --max-time 10 "https://cloudflare-dns.com/dns-query?name=${DOMAIN
 echo "  Cloudflare DNS answer: ${CF:-<none>}"
 if ! echo "$CF" | grep -qw "$EIP"; then
   echo "ERROR: DNS does not yet point ${DOMAIN} to ${EIP}." >&2
-  echo "In Cloudflare DNS, add:" >&2
-  echo "  Type A | Name @ | IPv4 ${EIP} | Proxy OFF (DNS only / grey cloud)" >&2
-  echo "  Type A | Name www | IPv4 ${EIP} | Proxy OFF (optional)" >&2
-  echo "Then re-run: DOMAIN=${DOMAIN} $0" >&2
+  echo "In Cloudflare DNS, set A records to Lightsail static IP ${EIP}:" >&2
+  echo "  Type A | Name @   | IPv4 ${EIP}" >&2
+  echo "  Type A | Name www | IPv4 ${EIP}" >&2
+  echo "Then re-run: DOMAIN=${DOMAIN} EIP=${EIP} $0" >&2
   exit 1
 fi
 
+# Build server_name list: DOMAIN plus apex/www siblings when applicable
+SERVER_NAMES="$DOMAIN"
+if [[ "$DOMAIN" == www.* ]]; then
+  SERVER_NAMES="$DOMAIN ${DOMAIN#www.}"
+elif [[ -n "$APEX_DOMAIN" && "$DOMAIN" != "$APEX_DOMAIN" ]]; then
+  SERVER_NAMES="$DOMAIN www.$DOMAIN"
+else
+  SERVER_NAMES="$DOMAIN www.$DOMAIN"
+fi
+
 ssh -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "ec2-user@${HOST}" \
-  "DOMAIN=${DOMAIN} bash -s" <<'REMOTE'
+  "DOMAIN=${DOMAIN} SERVER_NAMES='${SERVER_NAMES}' bash -s" <<'REMOTE'
 set -euo pipefail
 DOMAIN="${DOMAIN}"
+SERVER_NAMES="${SERVER_NAMES}"
 
 sudo tee /etc/nginx/conf.d/ai-conversation.conf >/dev/null <<EOF
 upstream ai_conversation_app {
@@ -36,7 +50,7 @@ upstream ai_conversation_app {
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name ${DOMAIN} www.${DOMAIN};
+    server_name ${SERVER_NAMES};
 
     client_max_body_size 50m;
 
@@ -65,11 +79,11 @@ sudo mkdir -p /var/www/certbot
 sudo nginx -t
 sudo systemctl reload nginx
 
-# Cert for apex; include www if it resolves
-DOMAINS=(-d "$DOMAIN")
-if getent hosts "www.$DOMAIN" >/dev/null 2>&1; then
-  DOMAINS+=(-d "www.$DOMAIN")
-fi
+# Cert names = server_names that currently resolve (best-effort)
+DOMAINS=()
+for name in $SERVER_NAMES; do
+  DOMAINS+=(-d "$name")
+done
 
 sudo certbot --nginx "${DOMAINS[@]}" \
   --non-interactive --agree-tos --register-unsafely-without-email \
@@ -83,7 +97,6 @@ else
   echo 'SESSION_HTTPS_ONLY=1' | sudo tee -a /etc/ai-conversation/env >/dev/null
 fi
 
-# Ensure nginx passes HTTPS scheme to the app for cookies
 if ! sudo grep -q 'X-Forwarded-Proto' /etc/nginx/conf.d/ai-conversation.conf; then
   echo "WARN: X-Forwarded-Proto missing in nginx config"
 fi

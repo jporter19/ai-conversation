@@ -146,6 +146,105 @@ export function initAdmin() {
         }
     });
 
+    document.getElementById('admin-enrich-desc-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('admin-enrich-desc-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Researching…';
+        }
+        setStatus('Web-searching model descriptions (this can take a minute)…');
+        try {
+            const res = await fetch('/api/v1/admin/models/enrich-descriptions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: false }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+            const lines = (data.results || []).map(r =>
+                `${r.provider_id}: ${r.ok ? 'OK' : 'FAIL'} — ${r.message}`,
+            );
+            setStatus(lines.join(' | ') || 'Descriptions updated');
+            await refreshCatalogUI();
+        } catch (e) {
+            setStatus(String(e.message || e), true);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Refresh model descriptions';
+            }
+        }
+    });
+
+    async function runRecommendations({ providerId = null, applyRemovals = false } = {}) {
+        setStatus(providerId
+            ? `AI tagging models for ${providerId}…`
+            : 'AI tagging & recommending models for all APIs…');
+        const res = await fetch('/api/v1/admin/models/recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider_id: providerId,
+                use_ai: true,
+                apply_removals: !!applyRemovals,
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+        const lines = (data.results || []).map(r =>
+            `${r.provider_id}: ${r.ok ? 'OK' : 'FAIL'} — ${r.message}`,
+        );
+        const removed = (data.removed || []).length;
+        setStatus(
+            (lines.join(' | ') || 'Done')
+            + (removed ? ` · removed ${removed}` : ''),
+        );
+        await refreshCatalogUI();
+        return data;
+    }
+
+    document.getElementById('admin-recommend-all-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('admin-recommend-all-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Working…';
+        }
+        try {
+            await runRecommendations({});
+        } catch (e) {
+            setStatus(String(e.message || e), true);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'AI tag & recommend all';
+            }
+        }
+    });
+
+    document.getElementById('admin-recommend-models-btn')?.addEventListener('click', async () => {
+        const pid = document.getElementById('admin-model-provider')?.value;
+        if (!pid) {
+            setStatus('Select an API first', true);
+            return;
+        }
+        const btn = document.getElementById('admin-recommend-models-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Working…';
+        }
+        try {
+            await runRecommendations({ providerId: pid });
+            switchTab('models');
+        } catch (e) {
+            setStatus(String(e.message || e), true);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'AI tag & recommend';
+            }
+        }
+    });
+
     document.getElementById('admin-save-prefs-btn')?.addEventListener('click', async () => {
         const theme = document.getElementById('admin-theme')?.value || 'light';
         const default_ai = document.getElementById('admin-default-ai')?.value || DEFAULT_AI;
@@ -188,11 +287,32 @@ export function initAdmin() {
     // Wizard — conversational discover
     document.getElementById('setup-discover-btn')?.addEventListener('click', () => runDiscover());
     document.getElementById('setup-reset-btn')?.addEventListener('click', () => resetDiscover());
+    document.getElementById('setup-apply-key-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('setup-apply-key-btn');
+        const key = document.getElementById('setup-api-key')?.value?.trim();
+        if (!key) {
+            setStatus('Paste an API key first.', true);
+            document.getElementById('setup-api-key')?.focus();
+            return;
+        }
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+        }
+        await runDiscover();
+    });
 
     document.getElementById('setup-description')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             runDiscover();
+        }
+    });
+
+    document.getElementById('setup-api-key')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('setup-apply-key-btn')?.click();
         }
     });
 

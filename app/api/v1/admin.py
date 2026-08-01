@@ -146,35 +146,65 @@ async def put_provider(provider_id: str, body: ProviderIn):
 
 
 @router.delete("/providers/{provider_id}")
-async def remove_provider(provider_id: str, hard: bool = False):
+async def remove_provider(provider_id: str, hard: bool = True):
     """
     Remove an AI from the hub.
-    - By default: soft-disable (enabled=false) so it leaves the main AI dropdown
-      but can be re-enabled later. Built-ins always soft-disable.
-    - hard=true: permanently delete from providers.json (not allowed for grok/chatgpt).
+    Default hard=true: permanently delete from providers.json and clear its API key
+    if no other provider still uses that key name.
+    soft (hard=false): only set enabled=false (legacy).
     """
     p = settings_store.get_provider(provider_id)
     if not p:
         raise HTTPException(404, "Provider not found")
 
-    if hard and provider_id not in ("grok", "chatgpt"):
-        ok = settings_store.delete_provider(provider_id)
-        if not ok:
-            raise HTTPException(404, "Provider not found")
+    if not hard:
+        p = {**p, "enabled": False}
+        settings_store.upsert_provider(p)
         return {
             "ok": True,
-            "deleted": True,
-            "disabled": False,
+            "deleted": False,
+            "disabled": True,
             "catalog": settings_store.public_catalog(),
         }
 
-    # Soft-disable (default, and always for built-ins)
-    p = {**p, "enabled": False}
-    settings_store.upsert_provider(p)
+    key_name = p.get("api_key_name")
+    ok = settings_store.delete_provider(provider_id)
+    if not ok:
+        raise HTTPException(404, "Provider not found")
+
+    # Drop orphaned secret when no remaining provider references it
+    if key_name:
+        still_used = any(
+            (q.get("api_key_name") == key_name)
+            for q in settings_store.get_providers()
+        )
+        if not still_used:
+            settings_store.save_secrets({key_name: None}, merge=True)
+
+    # Fix default_ai if it pointed at the deleted provider
+    prefs = settings_store.get_preferences()
+    if prefs.get("default_ai") == provider_id:
+        remaining = settings_store.get_providers(enabled_only=True)
+        # Prefer a provider that still has a key
+        nxt = None
+        for q in remaining:
+            kn = q.get("api_key_name")
+            if not kn or settings_store.get_secret(kn) or q.get("api_key_optional"):
+                nxt = q
+                break
+        if nxt:
+            models = nxt.get("models") or []
+            settings_store.save_preferences({
+                "default_ai": nxt.get("id"),
+                "default_model": (models[0].get("value") if models else "") or "",
+            })
+        else:
+            settings_store.save_preferences({"default_ai": "", "default_model": ""})
+
     return {
         "ok": True,
-        "deleted": False,
-        "disabled": True,
+        "deleted": True,
+        "disabled": False,
         "catalog": settings_store.public_catalog(),
     }
 
@@ -200,6 +230,23 @@ async def add_model(provider_id: str, body: ModelIn):
     try:
         model = body.model_dump()
         model["manual"] = True
+        # Research description for the new model
+        if not (model.get("tooltip") or "").strip() or len((model.get("tooltip") or "")) < 40:
+            try:
+                from app.services.model_descriptions import research_model_description
+
+                p = settings_store.get_provider(provider_id) or {}
+                desc = await research_model_description(
+                    model.get("value") or "",
+                    label=model.get("label") or model.get("value") or "",
+                    provider_label=str(p.get("label") or provider_id),
+                    capability=model.get("capability") or "chat",
+                )
+                model["tooltip"] = desc
+                model["description"] = desc
+                model["description_source"] = "web_search"
+            except Exception:
+                pass
         provider = settings_store.add_model(provider_id, model)
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -374,6 +421,90 @@ async def auto_update_one(provider_id: str):
         "ok": True,
         "message": msg,
         "provider": updated,
+        "catalog": settings_store.public_catalog(),
+    }
+
+
+class EnrichDescriptionsIn(BaseModel):
+    """Research tooltips/descriptions for models via web search."""
+    provider_id: Optional[str] = None  # None = all providers
+    force: bool = False  # re-research even if a description already exists
+
+
+@router.post("/models/enrich-descriptions")
+async def enrich_model_descriptions(body: EnrichDescriptionsIn = EnrichDescriptionsIn()):
+    """
+    Web-search each model and store a short “what it’s good for” blurb
+    on model.tooltip / model.description (shown as hover text in the UI).
+    """
+    from app.services.model_descriptions import enrich_all_providers, enrich_provider_models
+
+    try:
+        if body.provider_id:
+            _p, msg = await enrich_provider_models(body.provider_id, force=body.force)
+            results = [{"provider_id": body.provider_id, "ok": True, "message": msg}]
+        else:
+            results = await enrich_all_providers(force=body.force)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Description research failed: {e}")
+
+    return {
+        "results": results,
+        "catalog": settings_store.public_catalog(),
+    }
+
+
+class RecommendModelsIn(BaseModel):
+    provider_id: Optional[str] = None
+    use_ai: bool = True
+    apply_removals: bool = False  # if true, delete models marked recommendation=remove
+
+
+@router.post("/models/recommend")
+async def recommend_models_endpoint(body: RecommendModelsIn = RecommendModelsIn()):
+    """
+    Tag models (flagship, fast, cheap, deepthink, images, …) and recommend
+    keep vs remove. Optionally delete models recommended for removal.
+    """
+    from app.services.model_recommendations import (
+        recommend_all_providers,
+        recommend_provider_models,
+    )
+
+    try:
+        if body.provider_id:
+            _p, msg = await recommend_provider_models(body.provider_id, use_ai=body.use_ai)
+            results = [{"provider_id": body.provider_id, "ok": True, "message": msg}]
+        else:
+            results = await recommend_all_providers(use_ai=body.use_ai)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Recommendations failed: {e}")
+
+    removed = []
+    if body.apply_removals:
+        targets = [body.provider_id] if body.provider_id else [
+            r["provider_id"] for r in results if r.get("ok")
+        ]
+        for pid in targets:
+            p = settings_store.get_provider(pid)
+            if not p:
+                continue
+            keep = []
+            for m in p.get("models") or []:
+                if m.get("recommendation") == "remove" and not m.get("manual"):
+                    removed.append({"provider_id": pid, "model": m.get("value")})
+                else:
+                    keep.append(m)
+            if len(keep) != len(p.get("models") or []):
+                settings_store.set_provider_models(pid, keep)
+
+    return {
+        "results": results,
+        "removed": removed,
         "catalog": settings_store.public_catalog(),
     }
 

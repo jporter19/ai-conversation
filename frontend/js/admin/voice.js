@@ -282,10 +282,3 @@ export async function renderVoiceAdmin() {
     }
 }
 
-// ── Add API wizard (conversational discover) ──────────────────────────────────
-
-/** @type {Record<string, string>} answers to clarifying questions */
-let setupAnswers = {};
-/** @type {Array<{role: string, content: string}>} */
-let setupHistory = [];
-

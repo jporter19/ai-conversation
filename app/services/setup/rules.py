@@ -9,12 +9,18 @@ from app.services import settings_store
 from app.services.setup.presets import PRESETS, _CAP_HINTS
 
 def _detect_capability(text: str) -> Optional[str]:
+    """Match capability phrases with word boundaries (avoid 'chat' inside 'chatgpt')."""
     lower = (text or "").lower()
     best_cap = None
     best_len = 0
     for cap, phrases in _CAP_HINTS:
         for p in phrases:
-            if p in lower and len(p) > best_len:
+            # Multi-word: substring ok; single token: word boundary
+            if " " in p or "-" in p:
+                hit = p in lower
+            else:
+                hit = re.search(rf"\b{re.escape(p)}\b", lower) is not None
+            if hit and len(p) > best_len:
                 best_cap = cap
                 best_len = len(p)
     return best_cap
@@ -99,41 +105,100 @@ def _pick_model(
     }
 
 
+def _is_whole_provider_request(text: str, capability: Optional[str]) -> bool:
+    """
+    True when the user wants the whole API (e.g. "add ChatGPT"), not one model/capability.
+    Explicit specialty capabilities (stt/tts/image/transcript) force single-model flow.
+    """
+    if capability in ("stt", "tts", "image", "transcript"):
+        return False
+    lower = (text or "").lower().strip()
+    if re.search(r"\b(add|setup|enable|install|connect|configure)\b", lower):
+        return True
+    # Bare-ish provider name: "chatgpt", "openai", "grok api"
+    words = re.findall(r"[a-z0-9.]+", lower)
+    if len(words) <= 3 and not any(
+        w in lower for w in ("whisper", "tts", "stt", "image", "llama", "mixtral", "gpt-4", "grok-4")
+    ):
+        return True
+    return False
+
+
+def _all_models_from_preset(preset: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for m in preset.get("models") or []:
+        val = (m.get("value") or "").strip()
+        if not val:
+            continue
+        entry = {
+            "value": val,
+            "label": m.get("label") or val,
+            "tooltip": m.get("endpoint_hint") or m.get("tooltip") or f"From {preset.get('label')}",
+            "capability": m.get("capability") or "chat",
+        }
+        # Mark specialty models manual so auto-update keeps them
+        if entry["capability"] in ("stt", "tts", "transcript"):
+            entry["manual"] = True
+        out.append(entry)
+    return out
+
+
 def _proposal_from_preset(
     preset: Dict[str, Any],
     model: Dict[str, Any],
     *,
     confidence: str = "high",
+    whole_provider: bool = False,
 ) -> Dict[str, Any]:
+    # Always prefer maps_to_existing so "openai" preset lands on "chatgpt"
     existing_id = preset.get("maps_to_existing") or preset["id"]
     existing = settings_store.get_provider(existing_id)
     cap = model.get("capability") or "chat"
-    proposal = {
-        "id": existing_id if existing else preset["id"],
-        "label": (existing or {}).get("label") or preset["label"],
-        "base_url": (existing or {}).get("base_url") or preset["base_url"],
-        "api_key_name": (existing or {}).get("api_key_name") or preset["api_key_name"],
-        "key_test": "models" if cap in ("stt", "tts") else (preset.get("key_test") or "auto"),
-        "supports_tools": preset.get("supports_tools", False),
-        "supports_image_gen": bool(
-            preset.get("supports_image_gen")
-            or (existing or {}).get("supports_image_gen")
-            or cap == "image"
-        ),
-        "badge_color": preset.get("badge_color") or "#555555",
-        "needs_api_key": True,
-        "api_key_optional": False,
-        "type": "openai_compatible",
-        "models": [{
+
+    if whole_provider:
+        models = _all_models_from_preset(preset)
+        if not models and model.get("value"):
+            models = [{
+                "value": model["value"],
+                "label": model.get("label") or model["value"],
+                "tooltip": model.get("tooltip") or "",
+                "capability": cap,
+            }]
+    else:
+        models = [{
             "value": model["value"],
             "label": model.get("label") or model["value"],
             "tooltip": model.get("tooltip") or "",
             "capability": cap,
             "manual": True,
-        }],
+        }]
+
+    proposal = {
+        "id": existing_id,
+        "label": (existing or {}).get("label") or preset["label"],
+        "base_url": (existing or {}).get("base_url") or preset["base_url"],
+        "api_key_name": (existing or {}).get("api_key_name") or preset["api_key_name"],
+        "key_test": "models" if (not whole_provider and cap in ("stt", "tts")) else (preset.get("key_test") or "auto"),
+        "supports_tools": preset.get("supports_tools", False),
+        "supports_image_gen": bool(
+            preset.get("supports_image_gen")
+            or (existing or {}).get("supports_image_gen")
+            or cap == "image"
+            or any((m.get("capability") == "image") for m in models)
+        ),
+        "badge_color": preset.get("badge_color") or "#555555",
+        "needs_api_key": True,
+        "api_key_optional": False,
+        "type": "openai_compatible",
+        "models": models,
         "notes": preset.get("notes") or "",
         "confidence": confidence,
         "already_exists": bool(existing),
+        "whole_provider": whole_provider,
+        "replace_models": bool(whole_provider and not (existing or {}).get("models")),
+        "auto_update": bool(preset.get("auto_update") or (existing or {}).get("auto_update")),
+        "auto_update_source": preset.get("auto_update_source") or (existing or {}).get("auto_update_source"),
+        "image_api": preset.get("image_api") or (existing or {}).get("image_api"),
         "suggested_models": [
             {
                 "value": m["value"],
@@ -142,9 +207,9 @@ def _proposal_from_preset(
             }
             for m in (preset.get("models") or [])
         ],
-        "capability": cap,
+        "capability": "chat" if whole_provider else cap,
     }
-    if model.get("endpoint_hint"):
+    if model.get("endpoint_hint") and not whole_provider:
         proposal["notes"] = (
             (proposal["notes"] + " " if proposal["notes"] else "")
             + f"Endpoint: {model['endpoint_hint']}."
@@ -432,8 +497,10 @@ def discover_rules_only(
             "applied": False,
         }
 
+    whole = _is_whole_provider_request(combined, cap)
+
     model = _pick_model(preset, combined, capability=cap)
-    if not model:
+    if not model and not whole:
         return _clarify(
             f"I matched **{preset['label']}**, but I’m not sure which model. Pick one:",
             [{
@@ -465,31 +532,67 @@ def discover_rules_only(
                 "manual": True,
                 "endpoint_hint": found.get("endpoint_hint"),
             }
+            whole = False
 
-    # Capability intent with low model score and many options → clarify
-    score = model.get("_score", 0)
-    if cap is None and score < 3 and len(preset.get("models") or []) > 3:
-        # Provider clear, model/capability not
+    # Capability intent with low model score → ask only when NOT a whole-provider add
+    score = (model or {}).get("_score", 0)
+    if (
+        not whole
+        and cap is None
+        and score < 3
+        and len(preset.get("models") or []) > 3
+        and not answers.get("capability")
+    ):
         return _clarify(
-            f"I matched **{preset['label']}**. What kind of model do you want?",
+            f"I matched **{preset['label']}**. Add the whole API, or pick a capability?",
             [{
                 "id": "capability",
-                "prompt": "Capability",
+                "prompt": "What do you want?",
                 "options": [
-                    {"value": "chat", "label": "Chat / LLM"},
-                    {"value": "image", "label": "Image generation"},
-                    {"value": "stt", "label": "Speech to text"},
-                    {"value": "tts", "label": "Text to speech"},
+                    {"value": "chat", "label": "Chat / LLM only"},
+                    {"value": "image", "label": "Image generation only"},
+                    {"value": "stt", "label": "Speech to text only"},
+                    {"value": "tts", "label": "Text to speech only"},
                 ],
             }],
         )
 
-    proposal = _proposal_from_preset(preset, model, confidence="high" if score >= 2 or cap else "medium")
-    model_val = model["value"]
-    msg = f"Matched **{proposal['label']}**"
-    if proposal.get("already_exists"):
-        msg += " (provider already configured — will add/update this model)"
-    msg += f". Model: `{model_val}` ({model.get('capability') or 'chat'})."
+    if not model:
+        # Whole-provider fallback seed model
+        chat_models = [
+            m for m in (preset.get("models") or [])
+            if (m.get("capability") or "chat") == "chat"
+        ]
+        seed = (chat_models or preset.get("models") or [{}])[0]
+        model = {
+            "value": seed.get("value") or "default",
+            "label": seed.get("label") or seed.get("value") or "Default",
+            "capability": seed.get("capability") or "chat",
+            "_score": 0,
+        }
+
+    proposal = _proposal_from_preset(
+        preset,
+        model,
+        confidence="high" if whole or score >= 2 or cap else "medium",
+        whole_provider=whole,
+    )
+    if whole:
+        n = len(proposal.get("models") or [])
+        msg = f"Matched **{proposal['label']}** — will add the full API ({n} models)"
+        if proposal.get("auto_update"):
+            msg += " and refresh the live model list after your key works"
+        msg += "."
+        if not proposal.get("already_exists"):
+            msg += " Paste your API key below, then click **Find & add** again."
+        else:
+            msg += " Provider exists — key + models will be updated."
+    else:
+        model_val = model["value"]
+        msg = f"Matched **{proposal['label']}**"
+        if proposal.get("already_exists"):
+            msg += " (will add/update this model)"
+        msg += f". Model: `{model_val}` ({model.get('capability') or 'chat'})."
 
     return {
         "ok": True,

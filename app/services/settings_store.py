@@ -222,19 +222,11 @@ def get_secret(name: str) -> Optional[str]:
 def secrets_status() -> List[Dict[str, Any]]:
     """Public status for admin UI — never returns full keys.
 
-    Includes every provider's api_key_name so newly added APIs appear
-    on the Keys list immediately.
+    Only lists keys for **existing** providers (API Keys tab = update keys
+    for configured APIs, not empty known-key slots).
     """
     secrets = load_secrets()
-    # key_name -> meta
     meta: Dict[str, Dict[str, Any]] = {}
-    for key in KNOWN_SECRET_KEYS:
-        meta[key] = {
-            "name": key,
-            "providers": [],
-            "optional": key == "YOUTUBE_API_KEY",
-            "required": key != "YOUTUBE_API_KEY",
-        }
     for p in get_providers():
         kn = p.get("api_key_name")
         if not kn:
@@ -253,6 +245,7 @@ def secrets_status() -> List[Dict[str, Any]]:
         meta[kn]["providers"].append({
             "id": p.get("id"),
             "label": p.get("label") or p.get("id"),
+            "enabled": p.get("enabled", True),
         })
 
     status = []
@@ -296,12 +289,30 @@ def save_preferences(prefs: Dict[str, Any]) -> Dict[str, Any]:
         return merged
 
 
+def provider_has_active_key(provider: Dict[str, Any]) -> bool:
+    """True if the provider can be used: optional/tool, or secret configured."""
+    if not provider:
+        return False
+    if provider.get("api_key_optional") or provider.get("type") == "tool":
+        return True
+    kn = provider.get("api_key_name")
+    if not kn:
+        return True
+    return bool(get_secret(kn))
+
+
 def public_catalog() -> Dict[str, Any]:
-    """Safe payload for the chat UI (no secrets)."""
+    """Safe payload for the chat UI (no secrets).
+
+    Only enabled providers **with an active API key** (or key-optional tools)
+    appear in the main AI list — matches My APIs.
+    """
     cfg = load_providers_config()
     providers = []
     for p in cfg.get("providers") or []:
         if not p.get("enabled", True):
+            continue
+        if not provider_has_active_key(p):
             continue
         providers.append({
             "id": p.get("id"),
@@ -311,6 +322,8 @@ def public_catalog() -> Dict[str, Any]:
             "supports_tools": p.get("supports_tools", False),
             "supports_image_gen": p.get("supports_image_gen", False),
             "models": p.get("models") or [],
+            "auto_update": bool(p.get("auto_update")),
+            "api_key_name": p.get("api_key_name"),
         })
     return {
         "providers": providers,
