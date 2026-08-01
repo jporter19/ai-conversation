@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "grok",
+      "label": "Grok (xAI)",
+      "enabled": true,
+      "type": "openai_compatible",
+      "base_url": "https://api.x.ai/v1",
+      "api_key_name": "XAI_API_KEY",
+      "api_key_optional": false,
+      "supports_tools": true,
+      "supports_image_gen": true,
+      "auto_update": true,
+      "auto_update_source": "xai",
+      "key_test": "models",
+      "badge_color": "#1a535c",
+      "models": [
+        {
+          "value": "grok-4.5",
+          "label": "Grok 4.5 (Flagship)",
+          "tooltip": "Newest flagship – coding, agentic tool calling, knowledge work",
+          "capability": "chat"
+        },
+        {
+          "value": "grok-build-0.1",
+          "label": "Grok Build 0.1 (Agentic coding)",
+          "tooltip": "Early-access coding model for agentic workflows",
+          "capability": "chat"
+        },
+        {
+          "value": "grok-4.3",
+          "label": "Grok 4.3 (1M context)",
+          "tooltip": "Strong general-purpose model with 1M context",
+          "capability": "chat"
+        },
+        {
+          "value": "grok-4.20-0309-reasoning",
+          "label": "Grok 4.20 Reasoning",
+          "tooltip": "Reasoning-optimized – agentic tools, low hallucination",
+          "capability": "chat"
+        },
+        {
+          "value": "grok-4.20-0309-non-reasoning",
+          "label": "Grok 4.20 Non-Reasoning",
+          "tooltip": "Fast non-reasoning variant for chat and automation",
+          "capability": "chat"
+        },
+        {
+          "value": "grok-4.20-multi-agent-0309",
+          "label": "Grok 4.20 Multi-Agent",
+          "tooltip": "Multi-agent collaboration model",
+          "capability": "chat"
+        },
+        {
+          "value": "grok-imagine-image-quality",
+          "label": "Grok Imagine (Quality)",
+          "tooltip": "Highest-quality xAI image generation",
+          "capability": "image"
+        },
+        {
+          "value": "grok-imagine-image",
+          "label": "Grok Imagine (Fast)",
+          "tooltip": "Faster, lower-cost xAI image generation",
+          "capability": "image"
+        },
+        {
+          "value": "grok-stt",
+          "label": "Grok Speech-to-Text",
+          "tooltip": "POST https://api.x.ai/v1/stt (multipart file or URL)",
+          "capability": "stt",
+          "manual": true
+        },
+        {
+          "value": "grok-tts",
+          "label": "Grok Text-to-Speech",
+          "tooltip": "Text-to-speech via POST /v1/tts — type text to hear it (voice: eve|ara|leo|rex|sal)",
+          "capability": "tts",
+          "manual": true
+        }
+      ],
+      "image_api": "xai"
+    },
+    {
+      "id": "chatgpt",
+      "label": "ChatGPT (OpenAI)",
+      "enabled": true,
+      "type": "openai_compatible",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_name": "OPENAI_API_KEY",
+      "supports_tools": true,
+      "supports_image_gen": true,
+      "auto_update": true,
+      "auto_update_source": "openai",
+      "badge_color": "#10a37f",
+      "models": [],
+      "image_api": "openai"
+    },
+    {
+      "id": "magisterium",
+      "label": "Magisterium AI",
+      "enabled": true,
+      "type": "openai_compatible",
+      "base_url": "https://www.magisterium.com/api/v1",
+      "api_key_name": "MAGISTERIUM_API_KEY",
+      "supports_tools": false,
+      "supports_image_gen": false,
+      "auto_update": false,
+      "auto_update_source": null,
+      "badge_color": "#6b4c9a",
+      "models": [
+        {
+          "value": "magisterium-1",
+          "label": "Magisterium 1",
+          "tooltip": "Official Magisterium chat model (OpenAI-compatible chat/completions)",
+          "capability": "chat"
+        }
+      ],
+      "key_test": "chat"
+    },
+    {
+      "id": "youtube",
+      "label": "YouTube Transcripts",
+      "enabled": true,
+      "type": "tool",
+      "base_url": null,
+      "api_key_name": "YOUTUBE_API_KEY",
+      "supports_tools": false,
+      "supports_image_gen": false,
+      "auto_update": false,
+      "auto_update_source": null,
+      "badge_color": "#c4302b",
+      "models": [
+        {
+          "value": "youtube-transcript",
+          "label": "YouTube Transcript",
+          "tooltip": "Paste a YouTube URL to fetch the video transcript (API key optional for public captions)",
+          "capability": "transcript"
+        }
+      ],
+      "api_key_optional": true,
+      "notes": "Uses public captions via youtube-transcript-api. YOUTUBE_API_KEY is optional (only needed for YouTube Data API features).",
+      "tool_handler": "youtube"
+    }
+  ],
+  "preferences": {
+    "theme": "light",
+    "default_ai": "grok",
+    "default_model": "grok-4.5",
+    "tts_voice": "cosmo",
+    "tts_language": "en"
+  }
+}

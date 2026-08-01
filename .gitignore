@@ -1,4 +1,5 @@
 venv/
+.venv/
 __pycache__/
 *.pyc 
 .env
@@ -8,3 +9,14 @@ git-token.txt
 .pytest_cache/
 alembic.ini
 alembic/env.py  # optional — some people commit it, some don't
+
+# Runtime secrets & local overrides (never commit keys)
+app/data/secrets.json
+app/data/preferences.json
+app/data/users.json
+app/data/*.tmp
+app/data/conversations/
+app/data/media/
+.env.production
+deploy/.env
+deploy/secrets.env

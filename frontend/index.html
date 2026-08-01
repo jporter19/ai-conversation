@@ -10,10 +10,11 @@
         default-src 'self';
         script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline' 'unsafe-eval';
         style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
-        img-src 'self' data: https:;
-        connect-src 'self' http://127.0.0.1:8000;">
+        img-src 'self' data: blob: https:;
+        media-src 'self' data: blob: https: http:;
+        connect-src 'self' http://127.0.0.1:8000 https:;">
 
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css?v=playerfix1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">    <!-- Prevent favicon 404 noise -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
@@ -30,8 +31,6 @@
                     <label for="ai-select">AI:</label>
                     <select id="ai-select">
                         <option value="">Select AI</option>
-                        <option value="grok">Grok (xAI)</option>
-                        <option value="chatgpt">ChatGPT (OpenAI)</option>
                     </select>
                 </div>
 
@@ -41,6 +40,8 @@
                         <option value="">Select model after choosing AI</option>
                     </select>
                 </div>
+
+                <button type="button" id="logout-btn" class="header-logout-btn" title="Sign out">Logout</button>
             </div>
         </header>
 
@@ -52,18 +53,38 @@
 
             <!-- Input area -->
             <div class="input-area">
-                <textarea 
-                    id="user-input" 
-                    placeholder="Type your message here... (Shift+Enter for new line)"
-                    rows="4"
-                ></textarea>
-                <button id="send-btn">Send</button>
+                <div class="composer-main">
+                    <!-- Scenario 2: only when Speech-to-Text model is selected (save a full transcript) -->
+                    <div id="audio-attach-bar" class="audio-attach-bar" hidden>
+                        <input type="file" id="audio-file-input" accept="audio/*,video/mp4,video/webm,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4"
+                               hidden />
+                        <button type="button" id="audio-pick-btn" class="audio-btn" title="Choose an audio file to transcribe">📎 Attach audio</button>
+                        <button type="button" id="audio-record-btn" class="audio-btn" title="Record a full clip to save as a transcript">⏺ Record clip</button>
+                        <span id="audio-recording-hint" class="audio-recording-hint" hidden>Recording clip… click Stop when finished</span>
+                    </div>
+                    <p id="composer-status" class="composer-status" hidden role="status" aria-live="polite"></p>
+                    <!-- Mic (dictation) | textarea | Send — Send height matches input only -->
+                    <div class="composer-row">
+                        <button type="button" id="mic-btn" class="mic-btn" title="Speak instead of typing — uses STT API, keeps your selected AI">
+                            <span class="mic-icon" aria-hidden="true">🎤</span>
+                            <span class="mic-label">Mic</span>
+                        </button>
+                        <textarea
+                            id="user-input"
+                            placeholder="Type your message here... (Shift+Enter for new line)"
+                            rows="4"
+                        ></textarea>
+                        <button id="send-btn">Send</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Action buttons -->
             <div class="action-buttons">
                 <button id="reset-btn">Reset Conversation</button>
                 <button id="store-btn">Store Conversation</button>
+                <button id="restore-btn">Restore Conversation</button>
+                <button id="admin-btn" class="admin-action-btn">Admin Tools</button>
             </div>
         </main>
 
@@ -84,18 +105,55 @@
             </div>
         </div>
     </dialog>
-    <!-- Store Conversation Modal -->
-    <dialog id="store-modal" class="store-modal">
-        <div class="modal-content">
-            <h2>Store Conversation</h2>
-            <p>How would you like to store this conversation?</p>
 
+    <!-- STT: process recording / attached audio -->
+    <dialog id="stt-process-modal" class="store-modal">
+        <div class="modal-content">
+            <h2 id="stt-process-title">Process this recording?</h2>
+            <p id="stt-process-detail" class="admin-muted">Send the audio for speech-to-text and show the transcript in chat.</p>
+            <p id="stt-process-meta" class="stt-process-meta"></p>
             <div class="modal-options">
-                <button id="store-whole-btn" class="modal-btn primary">Whole Conversation</button>
-                <button id="store-summary-btn" class="modal-btn primary">Summary</button>
+                <button type="button" id="stt-process-yes" class="modal-btn primary">Yes, process</button>
+                <button type="button" id="stt-process-no" class="modal-btn secondary">No, discard</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Store Conversation Modal -->
+    <dialog id="store-modal" class="store-modal store-modal-wide">
+        <div class="modal-content">
+            <h2>Store</h2>
+            <p>Name this save, then pick what to keep.</p>
+
+            <label class="store-name-label" for="store-name-input">Name</label>
+            <input id="store-name-input" class="store-name-input" type="text"
+                   placeholder="e.g. YouTube transcript notes" maxlength="120"
+                   autocomplete="off" />
+            <p id="store-status" class="store-status" hidden></p>
+
+            <div class="modal-options store-options-grid">
+                <button id="store-whole-btn" class="modal-btn primary" type="button">Store whole conversation</button>
+                <button id="store-summary-btn" class="modal-btn primary" type="button">Store summary</button>
+                <button id="store-transcript-btn" class="modal-btn secondary" type="button">Store transcript</button>
+                <button id="store-audio-btn" class="modal-btn secondary" type="button">Store audio</button>
+                <button id="store-photos-btn" class="modal-btn secondary" type="button">Store photos</button>
             </div>
 
-            <button id="modal-cancel-btn" class="modal-btn secondary">Cancel</button>
+            <button id="modal-cancel-btn" class="modal-btn secondary" type="button">Cancel</button>
+        </div>
+    </dialog>
+
+    <!-- Restore Conversation Modal -->
+    <dialog id="restore-modal" class="store-modal store-modal-wide">
+        <div class="modal-content restore-content">
+            <div class="admin-header">
+                <h2>Restore Conversation</h2>
+                <button type="button" id="restore-close-btn" class="modal-btn secondary">Close</button>
+            </div>
+            <p class="admin-muted">Select a saved conversation to load. Restoring replaces the current chat (your live draft is still in browser storage until you reset).</p>
+            <p id="restore-status" class="store-status" hidden></p>
+            <div id="restore-list" class="restore-list">
+                <p class="admin-muted">Loading…</p>
+            </div>
         </div>
     </dialog>
     <!-- No Model Selected Modal -->
@@ -106,6 +164,204 @@
 
             <div class="modal-options">
                 <button id="no-model-ok-btn" class="modal-btn primary">OK</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Admin Tools Modal -->
+    <dialog id="admin-modal" class="admin-modal">
+        <div class="modal-content admin-content">
+            <div class="admin-header">
+                <h2>Admin Tools</h2>
+                <button type="button" id="admin-close-btn" class="modal-btn secondary">Close</button>
+            </div>
+
+            <div class="admin-tabs">
+                <button type="button" class="admin-tab active" data-tab="add">Add API</button>
+                <button type="button" class="admin-tab" data-tab="apis">My APIs</button>
+                <button type="button" class="admin-tab" data-tab="keys">API Keys</button>
+                <button type="button" class="admin-tab" data-tab="models">Models</button>
+                <button type="button" class="admin-tab" data-tab="voice">Voice</button>
+                <button type="button" class="admin-tab" data-tab="update">Auto-Update</button>
+                <button type="button" class="admin-tab" data-tab="prefs">Preferences</button>
+            </div>
+
+            <p id="admin-status" class="admin-status"></p>
+
+            <!-- Add API wizard (primary) — conversational discover -->
+            <div id="admin-panel-add" class="admin-panel active">
+                <p class="admin-muted">
+                    Describe what you want in plain language. We’ll find the provider &amp; model,
+                    reuse an existing key when possible, test it, and enable the model if everything checks out.
+                    Examples: <em>“Grok speech to text”</em>, <em>“OpenAI whisper”</em>, <em>“Groq Llama 8B”</em>
+                </p>
+
+                <div class="wizard-card">
+                    <h3>What do you want to add?</h3>
+                    <textarea id="setup-description" class="setup-textarea" rows="3"
+                        placeholder="e.g. What’s Grok’s speech to text API?"></textarea>
+                    <div class="wizard-actions">
+                        <button type="button" id="setup-discover-btn" class="modal-btn primary">Find &amp; add</button>
+                        <button type="button" id="setup-reset-btn" class="modal-btn secondary">Reset</button>
+                    </div>
+                    <div id="setup-preset-chips" class="preset-chips" aria-label="Quick examples"></div>
+                </div>
+
+                <div class="wizard-card" id="setup-clarify-card" hidden>
+                    <h3>A bit more information</h3>
+                    <p id="setup-clarify-msg" class="admin-muted"></p>
+                    <div id="setup-questions" class="setup-questions"></div>
+                </div>
+
+                <div class="wizard-card" id="setup-result-card" hidden>
+                    <h3>Result</h3>
+                    <p id="setup-result-msg" class="setup-result-msg"></p>
+                    <div id="setup-key-status" class="setup-key-status" hidden></div>
+                    <p id="setup-test-result" class="admin-key-test-result" hidden></p>
+                </div>
+
+                <div class="wizard-card" id="setup-key-card" hidden>
+                    <h3>API key needed</h3>
+                    <p class="admin-muted" id="setup-key-help">
+                        Paste a key for this provider, then click <strong>Find &amp; add</strong> again.
+                        If you already saved this key under API Keys, leave this blank.
+                    </p>
+                    <div class="admin-key-actions">
+                        <input type="password" id="setup-api-key" class="admin-key-input"
+                               placeholder="Paste API key (optional if already saved)…"
+                               autocomplete="off" spellcheck="false" />
+                        <button type="button" id="setup-test-btn" class="modal-btn secondary">Test key only</button>
+                    </div>
+                </div>
+
+                <details class="wizard-card setup-advanced" id="setup-proposal-card">
+                    <summary><strong>Advanced details</strong> <span class="admin-muted">(auto-filled — edit if needed)</span></summary>
+                    <p id="setup-suggest-msg" class="admin-muted"></p>
+                    <div class="admin-form-grid setup-grid">
+                        <label>Display name
+                            <input id="setup-label" placeholder="Grok (xAI)" />
+                        </label>
+                        <label>Internal id
+                            <input id="setup-id" placeholder="grok" />
+                        </label>
+                        <label>Base URL
+                            <input id="setup-base-url" placeholder="https://api.x.ai/v1" />
+                        </label>
+                        <label>Key name (storage id)
+                            <input id="setup-key-name" placeholder="XAI_API_KEY" />
+                        </label>
+                        <label>Model id
+                            <input id="setup-model-value" placeholder="grok-stt" />
+                        </label>
+                        <label>Model label
+                            <input id="setup-model-label" placeholder="Grok Speech-to-Text" />
+                        </label>
+                        <label>Capability
+                            <select id="setup-capability">
+                                <option value="chat">chat</option>
+                                <option value="image">image</option>
+                                <option value="stt">stt (speech to text)</option>
+                                <option value="tts">tts (text to speech)</option>
+                                <option value="transcript">transcript</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p id="setup-notes" class="admin-muted"></p>
+                    <div id="setup-model-suggestions" class="preset-chips"></div>
+                    <div class="wizard-actions">
+                        <button type="button" id="setup-apply-btn" class="modal-btn primary">Save manually</button>
+                    </div>
+                </details>
+            </div>
+
+            <!-- My APIs (providers overview) -->
+            <div id="admin-panel-apis" class="admin-panel">
+                <p class="admin-muted">
+                    Each AI is listed here with its key status.
+                    <strong>Remove</strong> hides it from the main AI dropdown (built-ins are disabled, not erased).
+                    <strong>Enable</strong> brings a disabled AI back.
+                    <strong>YouTube Transcripts</strong> does not need a key for public captions.
+                </p>
+                <div id="admin-providers-list" class="admin-list"></div>
+            </div>
+
+            <!-- API Keys -->
+            <div id="admin-panel-keys" class="admin-panel">
+                <p class="admin-muted">
+                    Keys are stored in <code>app/data/secrets.json</code> (not committed to git).
+                    Every configured API appears here — including ones you just added.
+                    Optional keys (e.g. YouTube) are labeled.
+                </p>
+                <div id="admin-keys-list"></div>
+                <button type="button" id="admin-save-keys-btn" class="modal-btn primary">Save API Keys</button>
+            </div>
+
+            <!-- Models -->
+            <div id="admin-panel-models" class="admin-panel">
+                <p class="admin-muted">Add extra model ids to an existing API (after the API itself is set up under Add API).</p>
+                <div class="admin-form-row">
+                    <label>API
+                        <select id="admin-model-provider"></select>
+                    </label>
+                </div>
+                <div id="admin-models-list" class="admin-list"></div>
+                <div class="admin-form-grid">
+                    <input id="admin-new-model-value" placeholder="Model id (e.g. llama-3.1-8b-instant)" />
+                    <input id="admin-new-model-label" placeholder="Display label" />
+                    <select id="admin-new-model-capability">
+                        <option value="chat">chat</option>
+                        <option value="image">image</option>
+                        <option value="stt">stt</option>
+                        <option value="tts">tts</option>
+                        <option value="transcript">transcript</option>
+                    </select>
+                    <input id="admin-new-model-tooltip" placeholder="Tooltip / description" />
+                    <button type="button" id="admin-add-model-btn" class="modal-btn primary">Add Model</button>
+                </div>
+            </div>
+
+            <!-- Voice / TTS preferences -->
+            <div id="admin-panel-voice" class="admin-panel">
+                <p class="admin-muted">
+                    Choose the default voice and language for text-to-speech (e.g. Grok TTS).
+                    <strong>Click any voice</strong> to hear a short sample on your speakers (no player UI).
+                    Click again to stop. You can still override per message with <code>voice: ara</code>.
+                </p>
+                <div class="admin-form-grid setup-grid">
+                    <label>Preferred voice
+                        <select id="admin-tts-voice"></select>
+                    </label>
+                    <label>Preferred language
+                        <input id="admin-tts-language" placeholder="en" value="en" />
+                    </label>
+                </div>
+                <p id="admin-voice-source" class="admin-muted"></p>
+                <div id="admin-voice-list" class="admin-list voice-list"></div>
+                <button type="button" id="admin-save-voice-btn" class="modal-btn primary">Save voice preferences</button>
+            </div>
+
+            <!-- Auto-update -->
+            <div id="admin-panel-update" class="admin-panel">
+                <p class="admin-muted">Refresh model lists for major AIs that support auto-update (Grok / ChatGPT). Requires their API keys.</p>
+                <button type="button" id="admin-auto-update-btn" class="modal-btn primary">Auto-Update All Models</button>
+            </div>
+
+            <!-- Preferences -->
+            <div id="admin-panel-prefs" class="admin-panel">
+                <div class="admin-form-row">
+                    <label>Theme
+                        <select id="admin-theme">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="admin-form-row">
+                    <label>Default AI
+                        <select id="admin-default-ai"></select>
+                    </label>
+                </div>
+                <button type="button" id="admin-save-prefs-btn" class="modal-btn primary">Save Preferences</button>
             </div>
         </div>
     </dialog>

@@ -24,6 +24,26 @@ export function clearConversation() {
     localStorage.removeItem(STORAGE_KEY);
 }
 
+/**
+ * Undo a just-sent user turn (stop/cancel).
+ * Removes the last message if it is a user message with the given content.
+ * Also drops any trailing assistant message that was incomplete/saved after it.
+ */
+export function removeLastUserTurn(content) {
+    if (!conversation.length || content == null) return false;
+    // Walk back past any trailing assistant (e.g. partial save edge case)
+    while (conversation.length && conversation[conversation.length - 1].role === 'assistant') {
+        conversation.pop();
+    }
+    const last = conversation[conversation.length - 1];
+    if (last && last.role === 'user' && last.content === content) {
+        conversation.pop();
+        saveConversation();
+        return true;
+    }
+    return false;
+}
+
 export function loadConversation(renderCallback, showWelcomeCallback) {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);

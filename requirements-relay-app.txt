@@ -1,0 +1,2 @@
+# Desktop tray controller for home transcript relay (optional on home PC only)
+PySide6-Essentials>=6.6.0

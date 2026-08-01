@@ -1,0 +1,23 @@
+[Unit]
+Description=AI Conversation Hub (FastAPI / Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/ai-conversation
+EnvironmentFile=-/etc/ai-conversation/env
+Environment=PATH=/opt/ai-conversation/.venv/bin:/usr/bin
+ExecStart=/opt/ai-conversation/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+# Streaming / long TTS + image gen
+TimeoutStopSec=30
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

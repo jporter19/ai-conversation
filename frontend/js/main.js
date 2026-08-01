@@ -1,28 +1,26 @@
 // frontend/js/main.js
-// Purpose: Entry point — imports modules and wires everything together
-// At top of main.js, update imports:
+// Purpose: Entry point — catalog load, selectors, chat, admin, theme
+
 import {
-    STORAGE_KEY,
     STORAGE_AI_KEY,
     STORAGE_MODEL_KEY,
-    grokModels,
-    openaiModels,
-    populateModels   
+    STORAGE_THEME_KEY,
+    DEFAULT_AI,
+    DEFAULT_GROK_MODEL,
+    loadCatalog,
+    catalog,
+    populateProviders,
+    populateModels,
+    applyTheme,
+    getModelsForProvider,
+    logout,
 } from './config.js';
 
-import {
-    getConversation,
-    loadConversation,
-    saveConversation,
-    clearConversation,
-    addMessage
-} from './state.js';
-
+import { loadConversation } from './state.js';
 import { renderHistory, showWelcome } from './ui.js';
+import { initChat, updateComposerForCapability } from './chat.js';
+import { initAdmin } from './admin.js';
 
-import { initChat } from './chat.js';
-
-// ── DOM Elements ────────────────────────────────────────────────────────────────
 let aiSelect;
 let modelSelect;
 
@@ -31,64 +29,81 @@ function cacheDOMElements() {
     modelSelect = document.getElementById('model-select');
 }
 
-// ── Set default AI and model ───────────────────────────────────────────────────
-// Add this function if not present
 function setDefaultSelection() {
-    if (aiSelect) {
-        aiSelect.value = 'grok';
-        populateModels(grokModels);
-        if (modelSelect) {
-            modelSelect.value = 'grok-4-1-fast-reasoning';
-        }
-        localStorage.setItem(STORAGE_AI_KEY, 'grok');
-        localStorage.setItem(STORAGE_MODEL_KEY, 'grok-4-1-fast-reasoning');
-    }
+    if (!aiSelect || !catalog) return;
+    const prefs = catalog.preferences || {};
+    const ai = prefs.default_ai || DEFAULT_AI;
+    const model = prefs.default_model || DEFAULT_GROK_MODEL;
+    populateProviders(aiSelect, ai);
+    populateModels(getModelsForProvider(aiSelect.value), model);
+    localStorage.setItem(STORAGE_AI_KEY, aiSelect.value);
+    localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || model);
 }
 
-// ── Initialization ───────────────────────────────────────────────────────────────
-function initApp() {
+function onAiChange() {
+    const ai = aiSelect.value;
+    const models = getModelsForProvider(ai);
+    const prefs = catalog?.preferences || {};
+    let preferred = localStorage.getItem(STORAGE_MODEL_KEY) || prefs.default_model || '';
+    if (!models.some(m => m.value === preferred)) {
+        preferred = models[0]?.value || '';
+    }
+    populateModels(models, preferred);
+    localStorage.setItem(STORAGE_AI_KEY, ai);
+    localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || preferred || '');
+    updateComposerForCapability();
+}
+
+async function initApp() {
     cacheDOMElements();
 
-    // Load saved conversation
-    loadConversation(renderHistory, showWelcome);
-
-    // Initialize chat actions
-    initChat();
-
-    // Attach AI change listener
-    aiSelect.addEventListener('change', () => {
-        const ai = aiSelect.value;
-        if (ai === 'grok') {
-            populateModels(grokModels);
-            // Default model for Grok
-            if (!modelSelect.value) modelSelect.value = 'grok-4-1-fast-reasoning';
-        } else if (ai === 'chatgpt') {
-            populateModels(openaiModels);
-        } else {
-            modelSelect.innerHTML = '<option value="" selected disabled>Select model after choosing AI</option>';
-            modelSelect.disabled = true;
-        }
-
-        localStorage.setItem(STORAGE_AI_KEY, ai);
-        localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || '');
+    document.getElementById('logout-btn')?.addEventListener('click', () => {
+        logout();
     });
 
-    // On first load (no saved AI) or after reset → set defaults
+    // Theme: localStorage first, then server prefs after catalog load
+    const localTheme = localStorage.getItem(STORAGE_THEME_KEY);
+    if (localTheme) applyTheme(localTheme);
+
+    try {
+        await loadCatalog();
+    } catch (e) {
+        console.error('Catalog load failed', e);
+        if (String(e.message || e).includes('Not authenticated')) return;
+        showWelcome();
+        initChat();
+        initAdmin();
+        return;
+    }
+
+    const prefs = catalog.preferences || {};
+    applyTheme(localTheme || prefs.theme || 'light');
+
+    loadConversation(renderHistory, showWelcome);
+    initChat();
+    initAdmin();
+
+    aiSelect.addEventListener('change', onAiChange);
+    modelSelect.addEventListener('change', () => {
+        localStorage.setItem(STORAGE_MODEL_KEY, modelSelect.value || '');
+        updateComposerForCapability();
+    });
+
     const savedAI = localStorage.getItem(STORAGE_AI_KEY);
-    if (!savedAI || savedAI === '') {
+    if (!savedAI) {
         setDefaultSelection();
     } else {
-        aiSelect.value = savedAI;
-        if (savedAI === 'grok') {
-            populateModels(grokModels);
+        populateProviders(aiSelect, savedAI);
+        if (!aiSelect.value) {
+            setDefaultSelection();
+        } else {
+            const models = getModelsForProvider(aiSelect.value);
             const savedModel = localStorage.getItem(STORAGE_MODEL_KEY);
-            modelSelect.value = savedModel || 'grok-4-1-fast-reasoning';
-        } else if (savedAI === 'chatgpt') {
-            populateModels(openaiModels);
+            const valid = models.some(m => m.value === savedModel);
+            populateModels(models, valid ? savedModel : (models[0]?.value || ''));
         }
     }
+    updateComposerForCapability();
 }
 
-// ── Run when DOM is ready ───────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', initApp);
-

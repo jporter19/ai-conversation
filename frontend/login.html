@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — AI Conversation Hub</title>
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data:;
+        connect-src 'self';">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: var(--bg, #0f1115);
+            color: var(--text, #e8eaed);
+        }
+        .login-card {
+            width: 100%;
+            max-width: 380px;
+            background: var(--panel, #1a1d24);
+            border: 1px solid var(--border, #2a2f3a);
+            border-radius: 12px;
+            padding: 1.75rem 1.5rem;
+            box-shadow: 0 12px 40px rgba(0,0,0,.35);
+        }
+        .login-card h1 {
+            margin: 0 0 .35rem;
+            font-size: 1.35rem;
+        }
+        .login-card p.sub {
+            margin: 0 0 1.25rem;
+            opacity: .75;
+            font-size: .9rem;
+        }
+        .login-card label {
+            display: block;
+            margin: .75rem 0 .35rem;
+            font-size: .85rem;
+            opacity: .9;
+        }
+        .login-card input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: .65rem .75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border, #2a2f3a);
+            background: var(--bg, #0f1115);
+            color: inherit;
+            font-size: 1rem;
+        }
+        .login-card button {
+            width: 100%;
+            margin-top: 1.25rem;
+            padding: .7rem 1rem;
+            border: none;
+            border-radius: 8px;
+            background: #3b82f6;
+            color: #fff;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .login-card button:disabled {
+            opacity: .6;
+            cursor: wait;
+        }
+        .login-error {
+            margin-top: .85rem;
+            color: #f87171;
+            font-size: .9rem;
+            min-height: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <form class="login-card" id="login-form" autocomplete="on">
+            <h1>AI Conversation Hub</h1>
+            <p class="sub">Sign in with the shared hub account.</p>
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" required autocomplete="username" autofocus>
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" required autocomplete="current-password">
+            <button type="submit" id="login-btn">Sign in</button>
+            <div class="login-error" id="login-error" role="alert"></div>
+        </form>
+    </div>
+    <script src="/js/login.js"></script>
+</body>
+</html>
