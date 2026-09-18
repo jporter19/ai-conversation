@@ -603,12 +603,13 @@ export function renderHistory() {
 export function showWelcome() {
     if (!chatHistory) return;
 
+    chatHistory.innerHTML = '';
     const welcome = document.createElement('div');
     welcome.className = 'welcome-message';
     welcome.innerHTML = `
         <p>Welcome to AI Conversation Hub!</p>
         <p>Choose an AI and model above, then start typing your message.</p>
-        <p>Conversations are saved in browser storage for now.</p>
+        <p>Use Store conversation to save a chat to your account. It stays private to you.</p>
     `;
     chatHistory.appendChild(welcome);
 }

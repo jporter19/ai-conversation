@@ -1,5 +1,7 @@
 # app/services/auth_store.py
-# Purpose: Small allowlist of users with bcrypt password hashes (file or env).
+# DEPRECATED: Local password auth is retired. Porter Family Portal SSO owns identity.
+# Kept only so old scripts/data do not import-crash; do not use for login.
+# Purpose (legacy): Small allowlist of users with bcrypt password hashes (file or env).
 
 from __future__ import annotations
 

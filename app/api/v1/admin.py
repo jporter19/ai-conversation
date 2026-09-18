@@ -5,13 +5,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.services import settings_store
 from app.services.model_catalog import update_all_auto_providers, update_provider_models
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+# Mounted at both /api/v1/hub and /api/v1/admin (legacy alias).
+# Prefer /hub in the SPA — Brave adblock often blocks paths containing "admin".
+router = APIRouter(tags=["hub"])
 
 
 class ModelIn(BaseModel):
@@ -121,8 +123,22 @@ class SetupApplyIn(BaseModel):
 # ── Public catalog (used by chat UI) ───────────────────────────────────────────
 
 @router.get("/catalog")
-async def get_catalog():
-    return settings_store.public_catalog()
+async def get_catalog(request: Request):
+    """Public-to-granted-users catalog (providers + per-user prefs). Never cache across users."""
+    from fastapi.responses import JSONResponse
+
+    from app.core.auth import request_user_id
+    from app.services.user_store import get_user_preferences
+
+    uid = request_user_id(request)
+    payload = settings_store.public_catalog(user_preferences=get_user_preferences(uid))
+    return JSONResponse(
+        content=payload,
+        headers={
+            "Cache-Control": "private, no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 # ── Providers ──────────────────────────────────────────────────────────────────
@@ -181,11 +197,18 @@ async def remove_provider(provider_id: str, hard: bool = True):
         if not still_used:
             settings_store.save_secrets({key_name: None}, merge=True)
 
-    # Fix default_ai if it pointed at the deleted provider
-    prefs = settings_store.get_preferences()
-    if prefs.get("default_ai") == provider_id:
+    # Fix this user's default_ai if it pointed at the deleted provider
+    from app.core.user_context import get_current_user_id
+    from app.services.user_store import (
+        current_user_preferences,
+        get_user_preferences,
+        save_user_preferences,
+    )
+
+    uid = get_current_user_id()
+    prefs = get_user_preferences(uid) if uid else current_user_preferences()
+    if uid and prefs.get("default_ai") == provider_id:
         remaining = settings_store.get_providers(enabled_only=True)
-        # Prefer a provider that still has a key
         nxt = None
         for q in remaining:
             kn = q.get("api_key_name")
@@ -194,18 +217,20 @@ async def remove_provider(provider_id: str, hard: bool = True):
                 break
         if nxt:
             models = nxt.get("models") or []
-            settings_store.save_preferences({
+            save_user_preferences(uid, {
                 "default_ai": nxt.get("id"),
                 "default_model": (models[0].get("value") if models else "") or "",
             })
         else:
-            settings_store.save_preferences({"default_ai": "", "default_model": ""})
+            save_user_preferences(uid, {"default_ai": "", "default_model": ""})
 
     return {
         "ok": True,
         "deleted": True,
         "disabled": False,
-        "catalog": settings_store.public_catalog(),
+        "catalog": settings_store.public_catalog(
+            user_preferences=current_user_preferences()
+        ),
     }
 
 
@@ -304,14 +329,23 @@ async def setup_test(body: TestKeyIn):
 # ── Preferences ────────────────────────────────────────────────────────────────
 
 @router.get("/preferences")
-async def get_preferences():
-    return settings_store.get_preferences()
+async def get_preferences(request: Request):
+    """Per-user theme / defaults / TTS voice (portal uid scoped)."""
+    from app.core.auth import request_user_id
+    from app.services.user_store import get_user_preferences
+
+    return get_user_preferences(request_user_id(request))
 
 
 @router.put("/preferences")
-async def put_preferences(body: PreferencesIn):
+async def put_preferences(body: PreferencesIn, request: Request):
+    """Save per-user preferences (theme, defaults, TTS voice)."""
+    from app.core.auth import request_user_id
+    from app.services.user_store import save_user_preferences
+
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
-    return settings_store.save_preferences(updates)
+    uid = request_user_id(request)
+    return save_user_preferences(uid, updates)
 
 
 # ── TTS voices ─────────────────────────────────────────────────────────────────
@@ -332,9 +366,11 @@ async def list_tts_voices(provider_id: str = "grok"):
     """
     from app.services.tts import list_voices
 
+    from app.services.user_store import current_user_preferences
+
     provider = settings_store.get_provider(provider_id)
     result = await list_voices(provider)
-    prefs = settings_store.get_preferences()
+    prefs = current_user_preferences()
     result["preferred_voice"] = prefs.get("tts_voice") or "eve"
     result["preferred_language"] = prefs.get("tts_language") or "en"
     result["provider_id"] = provider_id if provider else None
@@ -361,7 +397,9 @@ async def tts_preview(body: TtsPreviewIn):
     if not provider:
         raise HTTPException(400, "No TTS provider available. Configure Grok with an API key.")
 
-    prefs = settings_store.get_preferences()
+    from app.services.user_store import current_user_preferences
+
+    prefs = current_user_preferences()
     language = (body.language or prefs.get("tts_language") or "en").strip() or "en"
     voice_id = (body.voice_id or "eve").strip() or "eve"
     sample = (body.text or "").strip()
@@ -433,18 +471,29 @@ class EnrichDescriptionsIn(BaseModel):
 
 @router.post("/models/enrich-descriptions")
 async def enrich_model_descriptions(body: EnrichDescriptionsIn = EnrichDescriptionsIn()):
-    """
-    Web-search each model and store a short “what it’s good for” blurb
-    on model.tooltip / model.description (shown as hover text in the UI).
-    """
-    from app.services.model_descriptions import enrich_all_providers, enrich_provider_models
+    """Describe only (no remote fetch). Uses provider_sync with describe=True."""
+    from app.services.provider_sync import sync_provider
+    from app.services.settings_store import get_providers
 
+    results = []
     try:
-        if body.provider_id:
-            _p, msg = await enrich_provider_models(body.provider_id, force=body.force)
-            results = [{"provider_id": body.provider_id, "ok": True, "message": msg}]
-        else:
-            results = await enrich_all_providers(force=body.force)
+        targets = [body.provider_id] if body.provider_id else [
+            p.get("id") for p in get_providers() if p.get("id")
+        ]
+        for pid in targets:
+            if not pid:
+                continue
+            try:
+                out = await sync_provider(
+                    pid,
+                    fetch_remote=False,
+                    describe=True,
+                    recommend=False,
+                    force_describe=body.force,
+                )
+                results.append({"provider_id": pid, "ok": True, "message": out["message"]})
+            except Exception as e:
+                results.append({"provider_id": pid, "ok": False, "message": str(e)})
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -465,20 +514,30 @@ class RecommendModelsIn(BaseModel):
 @router.post("/models/recommend")
 async def recommend_models_endpoint(body: RecommendModelsIn = RecommendModelsIn()):
     """
-    Tag models (flagship, fast, cheap, deepthink, images, …) and recommend
-    keep vs remove. Optionally delete models recommended for removal.
+    Tag + keep/remove only (via provider_sync). Optionally apply removals.
     """
-    from app.services.model_recommendations import (
-        recommend_all_providers,
-        recommend_provider_models,
-    )
+    from app.services.provider_sync import sync_provider
+    from app.services.settings_store import get_providers
 
+    results = []
     try:
-        if body.provider_id:
-            _p, msg = await recommend_provider_models(body.provider_id, use_ai=body.use_ai)
-            results = [{"provider_id": body.provider_id, "ok": True, "message": msg}]
-        else:
-            results = await recommend_all_providers(use_ai=body.use_ai)
+        targets = [body.provider_id] if body.provider_id else [
+            p.get("id") for p in get_providers() if p.get("id")
+        ]
+        for pid in targets:
+            if not pid:
+                continue
+            try:
+                out = await sync_provider(
+                    pid,
+                    fetch_remote=False,
+                    describe=False,
+                    recommend=True,
+                    use_ai_recommend=body.use_ai,
+                )
+                results.append({"provider_id": pid, "ok": True, "message": out["message"]})
+            except Exception as e:
+                results.append({"provider_id": pid, "ok": False, "message": str(e)})
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -490,12 +549,18 @@ async def recommend_models_endpoint(body: RecommendModelsIn = RecommendModelsIn(
             r["provider_id"] for r in results if r.get("ok")
         ]
         for pid in targets:
+            if not pid:
+                continue
             p = settings_store.get_provider(pid)
             if not p:
                 continue
             keep = []
             for m in p.get("models") or []:
-                if m.get("recommendation") == "remove" and not m.get("manual"):
+                if (
+                    m.get("recommendation") == "remove"
+                    and not m.get("manual")
+                    and not m.get("roster_slot")
+                ):
                     removed.append({"provider_id": pid, "model": m.get("value")})
                 else:
                     keep.append(m)

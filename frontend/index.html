@@ -5,20 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Conversation Hub</title>
 
-    <!-- CSP to allow markdown-it/highlight.js dynamic code -->
+    <!-- CSP: app scripts + CDN markdown; Cloudflare Web Analytics beacon (injected by CF) -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline' 'unsafe-eval';
+        script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com 'unsafe-inline' 'unsafe-eval';
         style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
         img-src 'self' data: blob: https:;
         media-src 'self' data: blob: https: http:;
-        connect-src 'self' http://127.0.0.1:8000 https:;">
+        connect-src 'self' http://127.0.0.1:8000 https://cloudflareinsights.com https://*.cloudflareinsights.com https:;">
 
-    <link rel="stylesheet" href="/css/style.css?v=playerfix1">
+    <link rel="stylesheet" href="/portal-assets/sdk/portal-app.css">
+    <link rel="stylesheet" href="css/style.css?v=tools-menu-1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/atom-one-dark.min.css">    <!-- Prevent favicon 404 noise -->
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 <body>
+    <div id="portal-chrome"></div>
     <div class="app-container">
         <!-- Header -->
         <header class="app-header">
@@ -27,6 +29,14 @@
             </div>
 
             <div class="header-right">
+                <div class="selector-group">
+                    <label for="context-select">Context:</label>
+                    <select id="context-select" title="Persona / guidelines applied to every message">
+                        <option value="">None</option>
+                    </select>
+                    <button type="button" id="context-manage-btn" class="header-icon-btn" title="Create, edit, or delete contexts">Manage</button>
+                </div>
+
                 <div class="selector-group">
                     <label for="ai-select">AI:</label>
                     <select id="ai-select">
@@ -41,50 +51,62 @@
                     </select>
                 </div>
 
-                <button type="button" id="logout-btn" class="header-logout-btn" title="Sign out">Logout</button>
+                <span id="user-label" class="header-user-label" hidden title="Signed in via Porter Family Portal"></span>
+                <a id="exit-btn" class="header-exit-btn" href="/" title="Return to the family portal">Exit</a>
             </div>
         </header>
 
-        <!-- Main chat area -->
+        <!-- Main chat area: history scrolls; composer + tools stay pinned -->
         <main class="chat-container">
             <div class="chat-history" id="chat-history">
                 <!-- Messages rendered dynamically -->
             </div>
 
-            <!-- Input area -->
-            <div class="input-area">
-                <div class="composer-main">
-                    <!-- Scenario 2: only when Speech-to-Text model is selected (save a full transcript) -->
-                    <div id="audio-attach-bar" class="audio-attach-bar" hidden>
-                        <input type="file" id="audio-file-input" accept="audio/*,video/mp4,video/webm,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4"
-                               hidden />
-                        <button type="button" id="audio-pick-btn" class="audio-btn" title="Choose an audio file to transcribe">📎 Attach audio</button>
-                        <button type="button" id="audio-record-btn" class="audio-btn" title="Record a full clip to save as a transcript">⏺ Record clip</button>
-                        <span id="audio-recording-hint" class="audio-recording-hint" hidden>Recording clip… click Stop when finished</span>
-                    </div>
-                    <p id="composer-status" class="composer-status" hidden role="status" aria-live="polite"></p>
-                    <!-- Mic (dictation) | textarea | Send — Send height matches input only -->
-                    <div class="composer-row">
-                        <button type="button" id="mic-btn" class="mic-btn" title="Speak instead of typing — uses STT API, keeps your selected AI">
-                            <span class="mic-icon" aria-hidden="true">🎤</span>
-                            <span class="mic-label">Mic</span>
-                        </button>
-                        <textarea
-                            id="user-input"
-                            placeholder="Type your message here... (Shift+Enter for new line)"
-                            rows="4"
-                        ></textarea>
-                        <button id="send-btn">Send</button>
+            <div class="chat-bottom">
+                <!-- Input area (always visible) -->
+                <div class="input-area">
+                    <div class="composer-main">
+                        <!-- Scenario 2: only when Speech-to-Text model is selected (save a full transcript) -->
+                        <div id="audio-attach-bar" class="audio-attach-bar" hidden>
+                            <input type="file" id="audio-file-input" accept="audio/*,video/mp4,video/webm,.mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4"
+                                   hidden />
+                            <button type="button" id="audio-pick-btn" class="audio-btn" title="Choose an audio file to transcribe">📎 Attach audio</button>
+                            <button type="button" id="audio-record-btn" class="audio-btn" title="Record a full clip to save as a transcript">⏺ Record clip</button>
+                            <span id="audio-recording-hint" class="audio-recording-hint" hidden>Recording clip… click Stop when finished</span>
+                        </div>
+                        <p id="composer-status" class="composer-status" hidden role="status" aria-live="polite"></p>
+                        <!-- Mic | textarea | Send — fixed columns so Send never stretches full width -->
+                        <div class="composer-row">
+                            <button type="button" id="mic-btn" class="mic-btn" title="Speak instead of typing — uses STT API, keeps your selected AI" aria-label="Microphone">
+                                <span class="mic-icon" aria-hidden="true">🎤</span>
+                                <span class="mic-label">Mic</span>
+                            </button>
+                            <textarea
+                                id="user-input"
+                                placeholder="Type a message…"
+                                rows="1"
+                                enterkeyhint="send"
+                                autocomplete="off"
+                            ></textarea>
+                            <button type="button" id="send-btn" class="send-btn" title="Send message" aria-label="Send message">
+                                <span class="send-label">Send</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Action buttons -->
-            <div class="action-buttons">
-                <button id="reset-btn">Reset Conversation</button>
-                <button id="store-btn">Store Conversation</button>
-                <button id="restore-btn">Restore Conversation</button>
-                <button id="admin-btn" class="admin-action-btn">Admin Tools</button>
+                <!-- Tools: Reset / Store / Restore / Admin in one menu -->
+                <div class="tools-menu" id="tools-menu">
+                    <button type="button" id="tools-menu-btn" class="tools-menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="tools-menu-panel">
+                        Menu ▾
+                    </button>
+                    <div id="tools-menu-panel" class="tools-menu-panel" hidden role="menu">
+                        <button type="button" id="reset-btn" class="tools-menu-item" role="menuitem">Reset conversation</button>
+                        <button type="button" id="store-btn" class="tools-menu-item" role="menuitem">Store conversation</button>
+                        <button type="button" id="restore-btn" class="tools-menu-item" role="menuitem">Restore conversation</button>
+                        <button type="button" id="admin-btn" class="tools-menu-item tools-menu-item-admin" role="menuitem">Admin tools</button>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -139,6 +161,46 @@
             </div>
 
             <button id="modal-cancel-btn" class="modal-btn secondary" type="button">Cancel</button>
+        </div>
+    </dialog>
+
+    <!-- Manage Contexts Modal -->
+    <dialog id="context-modal" class="store-modal store-modal-wide">
+        <div class="modal-content restore-content">
+            <div class="admin-header">
+                <h2>Contexts</h2>
+                <button type="button" id="context-modal-close-btn" class="modal-btn secondary">Close</button>
+            </div>
+            <p class="admin-muted">
+                Contexts are personas, guidelines, and parameters applied as a system prompt on
+                <strong>every</strong> chat message while selected in the header.
+            </p>
+            <p id="context-modal-status" class="store-status" hidden></p>
+
+            <div class="context-manage-layout">
+                <div class="context-list-panel">
+                    <h3>Saved contexts</h3>
+                    <div id="context-list" class="admin-list context-list"></div>
+                    <button type="button" id="context-new-btn" class="modal-btn secondary">+ New context</button>
+                </div>
+                <div class="context-edit-panel">
+                    <h3 id="context-form-title">Edit context</h3>
+                    <input type="hidden" id="context-edit-id" value="" />
+                    <label class="store-name-label" for="context-name-input">Name</label>
+                    <input id="context-name-input" class="store-name-input" type="text"
+                           placeholder="e.g. Coding expert" maxlength="120" autocomplete="off" />
+                    <label class="store-name-label" for="context-desc-input">Short description (dropdown tooltip)</label>
+                    <input id="context-desc-input" class="store-name-input" type="text"
+                           placeholder="e.g. Software engineering focus" maxlength="400" autocomplete="off" />
+                    <label class="store-name-label" for="context-content-input">Context content</label>
+                    <textarea id="context-content-input" class="setup-textarea context-content-input" rows="10"
+                              placeholder="Personas, guidelines, parameters… applied to every query while this context is selected."></textarea>
+                    <div class="wizard-actions">
+                        <button type="button" id="context-save-btn" class="modal-btn primary">Save context</button>
+                        <button type="button" id="context-delete-btn" class="modal-btn secondary">Delete</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </dialog>
 
@@ -264,6 +326,7 @@
                                 <option value="stt">stt (speech to text)</option>
                                 <option value="tts">tts (text to speech)</option>
                                 <option value="transcript">transcript</option>
+                                <option value="video">video</option>
                             </select>
                         </label>
                     </div>
@@ -297,14 +360,16 @@
             <!-- Models -->
             <div id="admin-panel-models" class="admin-panel">
                 <p class="admin-muted">
-                    All models for each active API, with tags (flagship, fast, cheap, deepthink, images, …)
-                    and AI keep/remove recommendations. Specialized models and one cheap effective model are kept;
-                    superseded chat models are flagged for removal.
+                    Required roster first: Flagship, Cheap, Coding, Flagship image, Cheap image, Video,
+                    Speech to Text, Text to Speech. Labels look like <em>Grok 4.6 (Flagship)</em>.
                 </p>
                 <div class="admin-form-row">
                     <label>API
                         <select id="admin-model-provider"></select>
                     </label>
+                    <button type="button" id="admin-refresh-provider-btn" class="modal-btn secondary">
+                        Refresh this API
+                    </button>
                     <button type="button" id="admin-recommend-models-btn" class="modal-btn secondary">
                         AI tag &amp; recommend
                     </button>
@@ -319,6 +384,7 @@
                         <option value="stt">stt</option>
                         <option value="tts">tts</option>
                         <option value="transcript">transcript</option>
+                        <option value="video">video</option>
                     </select>
                     <input id="admin-new-model-tooltip" placeholder="Tooltip / description" />
                     <button type="button" id="admin-add-model-btn" class="modal-btn primary">Add Model</button>
@@ -348,12 +414,13 @@
             <!-- Auto-update -->
             <div id="admin-panel-update" class="admin-panel">
                 <p class="admin-muted">
-                    Refresh model lists for AIs with auto-update (Grok / ChatGPT). Requires active keys.
-                    Also updates the <strong>default model</strong> when a newer flagship appears
-                    (e.g. Grok 4.5 → Grok 4.6), and researches short “what it’s good for” descriptions.
+                    Refresh Grok and ChatGPT from their APIs, then keep a full roster:
+                    Flagship, Cheap, Coding, Flagship image, Cheap image, Speech to Text,
+                    Text to Speech, and Video. Labels look like <strong>Grok 4.6 (Flagship)</strong>.
+                    Models you added by hand stay. Descriptions and AI tagging are separate (can take a minute).
                 </p>
                 <div class="wizard-actions">
-                    <button type="button" id="admin-auto-update-btn" class="modal-btn primary">Auto-Update All Models</button>
+                    <button type="button" id="admin-auto-update-btn" class="modal-btn primary">Refresh Grok &amp; ChatGPT lists</button>
                     <button type="button" id="admin-enrich-desc-btn" class="modal-btn secondary">Refresh model descriptions</button>
                     <button type="button" id="admin-recommend-all-btn" class="modal-btn secondary">AI tag &amp; recommend all</button>
                 </div>
@@ -389,10 +456,10 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
 <!-- Model dropdown description tooltip (selected / hovered model) -->
 <script type="module">
-import { initModelTooltips } from '/js/model_tooltip.js';
+import { initModelTooltips } from './js/model_tooltip.js';
 document.addEventListener('DOMContentLoaded', () => initModelTooltips());
 </script>
 <!-- Your main script -->
-<script type="module" src="/js/main.js"></script>
+<script type="module" src="js/main.js?v=chat-ns-1"></script>
 </body>
 </html>

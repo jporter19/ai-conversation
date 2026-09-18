@@ -1,5 +1,5 @@
 # app/services/conversation_store.py
-# Purpose: Persist named conversations to disk for later restore.
+# Purpose: Persist named conversations to disk for later restore (per portal user).
 
 from __future__ import annotations
 
@@ -11,17 +11,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.paths import get_data_dir
+from app.core.user_context import get_current_user_id, require_user_id
+from app.services.user_store import user_conversations_dir
 
 _lock = threading.RLock()
+_SAFE_CONV_ID = re.compile(r"^[a-fA-F0-9]{8,64}$")
 
 
-def _conversations_dir() -> Path:
-    return get_data_dir() / "conversations"
+def sanitize_conv_id(conv_id: str) -> Optional[str]:
+    cid = (conv_id or "").strip()
+    if not cid or not _SAFE_CONV_ID.match(cid):
+        return None
+    if ".." in cid or "/" in cid or "\\" in cid:
+        return None
+    return cid
 
 
-def _ensure_dir() -> None:
-    _conversations_dir().mkdir(parents=True, exist_ok=True)
+def _resolve_uid(user_id: Optional[str] = None) -> str:
+    uid = (user_id or get_current_user_id() or "").strip()
+    if not uid:
+        raise RuntimeError("user_id required for conversations")
+    return uid
+
+
+def _conversations_dir(user_id: Optional[str] = None) -> Path:
+    return user_conversations_dir(_resolve_uid(user_id))
+
+
+def _ensure_dir(user_id: Optional[str] = None) -> Path:
+    d = _conversations_dir(user_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def _now_iso() -> str:
@@ -33,19 +53,37 @@ def _safe_slug(name: str) -> str:
     return slug or "conversation"
 
 
-def _path_for(conv_id: str) -> Path:
-    return _conversations_dir() / f"{conv_id}.json"
+def _path_for(conv_id: str, user_id: Optional[str] = None) -> Optional[Path]:
+    cid = sanitize_conv_id(conv_id)
+    if not cid:
+        return None
+    root = _conversations_dir(user_id).resolve()
+    path = (root / f"{cid}.json").resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
 
 
-def list_conversations() -> List[Dict[str, Any]]:
+def _owned_payload(data: Dict[str, Any], user_id: Optional[str] = None) -> bool:
+    owner = data.get("user_id")
+    if not owner:
+        return True
+    return str(owner) == _resolve_uid(user_id)
+
+
+def list_conversations(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Return summary rows newest-first (no full message bodies)."""
-    _ensure_dir()
+    _ensure_dir(user_id)
     rows: List[Dict[str, Any]] = []
     with _lock:
-        for path in _conversations_dir().glob("*.json"):
+        for path in _conversations_dir(user_id).glob("*.json"):
             try:
                 with path.open("r", encoding="utf-8") as f:
                     data = json.load(f)
+                if not isinstance(data, dict) or not _owned_payload(data, user_id):
+                    continue
                 messages = data.get("messages") or []
                 rows.append({
                     "id": data.get("id") or path.stem,
@@ -73,16 +111,19 @@ def _preview(messages: List[Dict[str, Any]], max_len: int = 120) -> str:
     return ""
 
 
-def get_conversation(conv_id: str) -> Optional[Dict[str, Any]]:
-    path = _path_for(conv_id)
-    if not path.exists():
+def get_conversation(conv_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    path = _path_for(conv_id, user_id)
+    if not path or not path.exists():
         return None
     with _lock:
         try:
             with path.open("r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
         except (OSError, json.JSONDecodeError):
             return None
+    if not isinstance(data, dict) or not _owned_payload(data, user_id):
+        return None
+    return data
 
 
 def save_conversation(
@@ -90,6 +131,7 @@ def save_conversation(
     messages: List[Dict[str, Any]],
     kind: str = "whole",
     conv_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     name = (name or "").strip()
     if not name:
@@ -99,12 +141,20 @@ def save_conversation(
     if kind not in ("whole", "summary"):
         kind = "whole"
 
-    _ensure_dir()
-    conv_id = conv_id or uuid.uuid4().hex
+    uid = user_id or require_user_id()
+    _ensure_dir(uid)
+    if conv_id:
+        cid = sanitize_conv_id(conv_id)
+        if not cid:
+            raise ValueError("Invalid conversation id")
+        conv_id = cid
+    else:
+        conv_id = uuid.uuid4().hex
     stored_at = _now_iso()
 
     payload = {
         "id": conv_id,
+        "user_id": uid,
         "name": name,
         "stored_at": stored_at,
         "kind": kind,
@@ -113,7 +163,9 @@ def save_conversation(
         "slug": _safe_slug(name),
     }
 
-    path = _path_for(conv_id)
+    path = _path_for(conv_id, uid)
+    if not path:
+        raise ValueError("Invalid conversation id")
     with _lock:
         tmp = path.with_suffix(".json.tmp")
         with tmp.open("w", encoding="utf-8") as f:
@@ -131,10 +183,19 @@ def save_conversation(
     }
 
 
-def delete_conversation(conv_id: str) -> bool:
-    path = _path_for(conv_id)
+def delete_conversation(conv_id: str, user_id: Optional[str] = None) -> bool:
+    path = _path_for(conv_id, user_id)
+    if not path:
+        return False
     with _lock:
         if not path.exists():
+            return False
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict) and not _owned_payload(data, user_id):
+                return False
+        except (OSError, json.JSONDecodeError):
             return False
         path.unlink()
         return True

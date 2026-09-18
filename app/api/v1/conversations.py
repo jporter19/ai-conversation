@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.core.auth import request_user_id
 from app.services import conversation_store
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -26,20 +27,23 @@ class StoreConversationIn(BaseModel):
 
 
 @router.get("")
-async def list_conversations():
-    return {"conversations": conversation_store.list_conversations()}
+async def list_conversations(request: Request):
+    uid = request_user_id(request)
+    return {"conversations": conversation_store.list_conversations(user_id=uid)}
 
 
 @router.get("/{conv_id}")
-async def get_conversation(conv_id: str):
-    data = conversation_store.get_conversation(conv_id)
+async def get_conversation(conv_id: str, request: Request):
+    uid = request_user_id(request)
+    data = conversation_store.get_conversation(conv_id, user_id=uid)
     if not data:
         raise HTTPException(404, "Conversation not found")
     return data
 
 
 @router.post("")
-async def store_conversation(body: StoreConversationIn):
+async def store_conversation(body: StoreConversationIn, request: Request):
+    uid = request_user_id(request)
     messages = [m.model_dump(exclude_none=True) for m in body.messages]
     kind = (body.kind or "whole").lower()
     if kind == "summary":
@@ -49,6 +53,7 @@ async def store_conversation(body: StoreConversationIn):
             name=body.name,
             messages=messages,
             kind=kind,
+            user_id=uid,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -56,8 +61,9 @@ async def store_conversation(body: StoreConversationIn):
 
 
 @router.delete("/{conv_id}")
-async def delete_conversation(conv_id: str):
-    ok = conversation_store.delete_conversation(conv_id)
+async def delete_conversation(conv_id: str, request: Request):
+    uid = request_user_id(request)
+    ok = conversation_store.delete_conversation(conv_id, user_id=uid)
     if not ok:
         raise HTTPException(404, "Conversation not found")
     return {"ok": True}

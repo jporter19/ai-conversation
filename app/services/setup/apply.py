@@ -154,43 +154,26 @@ async def apply_setup(
             }
 
     refresh_msg = None
-    did_remote_catalog = False
-    # Live model catalog when provider supports auto-update and key works
-    if (
+    # Single catalog pipeline after key is usable
+    can_sync = (
         refresh_remote_models
-        and auto_update
-        and auto_source
         and settings_store.get_secret(api_key_name)
         and (test_result is None or test_result.get("ok") is not False)
-    ):
+    )
+    if can_sync:
         try:
-            from app.services.model_catalog import update_provider_models
+            from app.services.provider_sync import sync_provider
 
-            updated, refresh_msg = await update_provider_models(pid)
-            provider = updated
-            did_remote_catalog = True
+            # Fetch remote only when provider supports auto_update
+            out = await sync_provider(
+                pid,
+                fetch_remote=bool(auto_update and auto_source),
+                describe=False,
+                recommend=False,
+            )
+            refresh_msg = out.get("message")
         except Exception as e:
-            refresh_msg = f"Saved preset models; live refresh skipped: {e}"
-
-    # Research descriptions + recommend keep/remove (remote update path already does both)
-    if not did_remote_catalog:
-        try:
-            from app.services.model_descriptions import enrich_provider_models
-
-            _p, desc_msg = await enrich_provider_models(pid, force=False)
-            if desc_msg and "0 model" not in desc_msg:
-                refresh_msg = (refresh_msg + "; " if refresh_msg else "") + desc_msg
-        except Exception as e:
-            if not refresh_msg:
-                refresh_msg = f"Model descriptions skipped: {e}"
-        try:
-            from app.services.model_recommendations import recommend_provider_models
-
-            _p, rec_msg = await recommend_provider_models(pid, use_ai=True)
-            if rec_msg:
-                refresh_msg = (refresh_msg + "; " if refresh_msg else "") + rec_msg
-        except Exception as e:
-            refresh_msg = (refresh_msg + "; " if refresh_msg else "") + f"recommendations skipped: {e}"
+            refresh_msg = f"Catalog sync skipped: {e}"
 
     return {
         "provider": settings_store.get_provider(pid),

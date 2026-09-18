@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AI Conversation Transcript Relay
+Comment=Home YouTube transcript relay (Lightsail or EC2 hub)
+Exec=@BIN@
+Icon=@ICON@
+Terminal=false
+Categories=Network;Utility;X-Custom;
+StartupNotify=true

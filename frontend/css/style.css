@@ -77,42 +77,49 @@ body {
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100vh;
   height: 100dvh;
-  max-width: min(1800px, 98vw);
+  width: 100%;
+  max-width: min(1800px, 100vw);
   margin: 0 auto;
   overflow: hidden;
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 /* Header & selectors */
 .app-header {
   background: var(--card-bg);
   border-bottom: 1px solid var(--border);
-  padding: 1rem 2rem;
+  padding: 0.75rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.75rem;
   grid-row: 1;
+  min-width: 0;
 }
 
 .header-left h1 {
-  font-size: 1.8rem;
+  font-size: clamp(1.1rem, 4vw, 1.8rem);
   color: var(--primary);
 }
 
 .header-right {
   display: flex;
-  gap: 1.5rem;
+  gap: 0.75rem;
   align-items: center;
   flex-wrap: wrap;
-  min-width: 500px; /* Prevents collapse when model select shrinks */
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .selector-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-width: 260px; /* Reserves space for longest label */
+  min-width: 0;
+  flex: 1 1 10rem;
 }
 
 .selector-group label {
@@ -120,44 +127,151 @@ body {
   color: var(--text-light);
 }
 
+.header-icon-btn {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-dark);
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.header-icon-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+#context-select {
+  min-width: 180px;
+  width: 180px;
+}
+
+.context-manage-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.9fr) minmax(280px, 1.4fr);
+  gap: 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.context-list-panel h3,
+.context-edit-panel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.context-list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 0.65rem;
+}
+
+.context-list-item {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  margin-bottom: 0.4rem;
+  background: var(--input-bg);
+}
+
+.context-list-item.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.context-content-input {
+  width: 100%;
+  min-height: 12rem;
+  margin-bottom: 0.75rem;
+  font-family: inherit;
+}
+
+@media (max-width: 768px) {
+  .context-manage-layout {
+    grid-template-columns: 1fr;
+  }
+  #context-select {
+    min-width: 140px;
+    width: 140px;
+  }
+}
+
 select {
-  padding: 0.6rem 1rem;
+  padding: 0.5rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--input-bg);
   color: var(--text-dark);
   font-size: 1rem;
-  min-width: 220px;
-  width: 220px; /* Fixed width prevents layout shift on selection */
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
 }
 
-/* Main chat area — only the history pane scrolls */
+/* Desktop: fixed select widths so the header does not jump */
+@media (min-width: 900px) {
+  .header-right {
+    flex: 0 1 auto;
+    min-width: 28rem;
+    gap: 1.25rem;
+  }
+
+  .selector-group {
+    flex: 0 0 auto;
+    min-width: 14rem;
+  }
+
+  select {
+    min-width: 12rem;
+    width: 14rem;
+    max-width: 16rem;
+  }
+
+  .app-header {
+    padding: 1rem 2rem;
+  }
+}
+
+/* Main chat area — history scrolls; composer + tools stay pinned at bottom */
 .chat-container {
   grid-row: 2;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  display: flex;
+  flex-direction: column;
   padding: 1.5rem 2rem;
   min-height: 0;
   overflow: hidden;
   height: 100%;
+  gap: 0.65rem;
 }
 
 .chat-history {
-  grid-row: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
   background: var(--card-bg);
   border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 1.5rem;
-  margin-bottom: 1rem;
-  overflow-y: scroll;
+  margin-bottom: 0;
+  overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   /* block layout avoids nested-flex height bugs with long messages */
   display: block;
+}
+
+/* Always-visible bottom chrome: ask AI + tools menu */
+.chat-bottom {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  z-index: 12;
+  background: var(--bg-light);
+  padding-top: 0.15rem;
 }
 
 .welcome-message {
@@ -166,13 +280,12 @@ select {
   padding: 2rem 1rem;
 }
 
-/* Input & action buttons (pinned under history) */
+/* Input (pinned under history) */
 .input-area {
-  grid-row: 2;
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  align-items: flex-end;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0;
 }
 
 .input-area.drag-over {
@@ -182,17 +295,20 @@ select {
 }
 
 .composer-main {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.4rem;
+  width: 100%;
   min-width: 0;
 }
 
+/* Grid keeps Mic | Input | Send as fixed columns — Send cannot become full-width */
 .composer-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.65rem;
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 3.75rem;
+  align-items: end;
+  gap: 0.4rem;
+  width: 100%;
   min-width: 0;
 }
 
@@ -228,27 +344,34 @@ select {
 }
 
 .mic-btn {
-  flex: 0 0 auto;
-  align-self: stretch;
-  min-width: 3.25rem;
+  grid-column: 1;
+  width: 2.75rem;
+  height: 2.75rem;
+  max-width: 2.75rem;
+  max-height: 2.75rem;
   border: 1px solid var(--border);
   background: var(--card-bg);
   color: var(--text-dark);
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.7rem;
+  gap: 0;
+  padding: 0;
+  font-size: 0.65rem;
   font-weight: 600;
+  box-sizing: border-box;
 }
 
 .mic-btn .mic-icon {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   line-height: 1;
+}
+
+.mic-btn .mic-label {
+  display: none; /* icon-only; keeps control compact on all widths */
 }
 
 .mic-btn:hover {
@@ -311,17 +434,23 @@ select {
 }
 
 #user-input {
-  flex: 1;
+  grid-column: 2;
   width: 100%;
   min-width: 0;
-  padding: 1rem;
+  max-width: 100%;
+  padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 1.05rem;
+  border-radius: 10px;
+  font-size: 16px; /* 16px prevents iOS zoom; fine on desktop too */
+  line-height: 1.35;
   resize: none;
-  min-height: 80px;
+  min-height: 2.75rem;
+  height: 2.75rem;
+  max-height: 2.75rem;
+  overflow-y: auto;
   background: var(--input-bg);
   color: var(--text-dark);
+  box-sizing: border-box;
 }
 
 #user-input.composer-stt {
@@ -333,36 +462,51 @@ select {
   box-shadow: 0 0 0 2px color-mix(in srgb, #c0392b 20%, transparent);
 }
 
-#send-btn {
-  flex: 0 0 auto;
-  align-self: stretch;
-  padding: 0 1.5rem;
-  min-width: 5rem;
-  /* Height follows the textarea row only (not the STT bar above) */
+#send-btn,
+.send-btn {
+  grid-column: 3;
+  width: 3.75rem;
+  max-width: 3.75rem;
+  min-width: 0;
+  height: 2.75rem;
+  max-height: 2.75rem;
+  padding: 0;
+  margin: 0;
   background: var(--primary);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1;
   cursor: pointer;
   transition: background 0.2s, color 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  flex: none;
 }
 
-#send-btn:hover {
+#send-btn:hover,
+.send-btn:hover {
   background: var(--primary-dark);
 }
 
 /* Stop control while generating — square “stop” icon */
-#send-btn.is-stop {
+#send-btn.is-stop,
+.send-btn.is-stop {
   background: #c0392b;
-  padding: 0 1.25rem;
+  padding: 0;
 }
 
-#send-btn.is-stop:hover {
+#send-btn.is-stop:hover,
+.send-btn.is-stop:hover {
   background: #a93226;
+}
+
+#send-btn .send-label {
+  pointer-events: none;
 }
 
 .store-options-grid {
@@ -383,9 +527,6 @@ select {
   .store-options-grid {
     grid-template-columns: 1fr;
   }
-  .mic-btn .mic-label {
-    display: none;
-  }
 }
 
 #send-btn .stop-square {
@@ -397,31 +538,83 @@ select {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
-.action-buttons {
-  grid-row: 3;
+/* Tools dropdown (Reset / Store / Restore / Admin) */
+.tools-menu {
+  position: relative;
   display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  width: 100%;
+  min-width: 0;
 }
 
-.action-buttons button {
-  padding: 0.8rem 1.5rem;
+.tools-menu-btn {
+  padding: 0.45rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--card-bg);
   color: var(--text-dark);
   cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.tools-menu-btn:hover,
+.tools-menu-btn[aria-expanded="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tools-menu-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.35rem);
+  min-width: 12.5rem;
+  max-width: min(18rem, 92vw);
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.tools-menu-panel[hidden] {
+  display: none !important;
+}
+
+.tools-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dark);
+  cursor: pointer;
+  font-size: 0.88rem;
   font-weight: 500;
 }
 
-.action-buttons button:hover {
-  filter: brightness(0.95);
+.tools-menu-item:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
 }
 
-.admin-action-btn {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
+.tools-menu-item-admin {
+  border-top: 1px solid var(--border);
+  margin-top: 0.15rem;
+  padding-top: 0.65rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.tools-menu-item[hidden] {
+  display: none !important;
 }
 
 /* Chat message bubbles */
@@ -883,60 +1076,294 @@ footer {
   filter: none;
 }
 
-/* Responsive adjustments */
+/* Phone layout: ~¾-screen reading pane, smaller type, no horizontal page bleed.
+   Wide tables/images/code scroll inside the message, not the whole page. */
 @media (max-width: 768px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden; /* page does not scroll; only .chat-history */
+  }
+
+  body {
+    font-size: 15px; /* slightly smaller base type on phone */
+  }
+
+  .app-container {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
   .app-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    padding: 0.4rem 0.55rem;
+    gap: 0.35rem;
+  }
+
+  .header-left h1 {
+    font-size: 1.05rem;
   }
 
   .header-right {
     flex-direction: column;
     width: 100%;
-    gap: 1rem;
-    min-width: auto;
+    gap: 0.35rem;
   }
 
   .selector-group {
     width: 100%;
-    justify-content: space-between;
-    min-width: auto;
+    flex: none;
+    gap: 0.35rem;
+  }
+
+  .selector-group label {
+    font-size: 0.78rem;
+    flex-shrink: 0;
+    min-width: 3.75rem;
   }
 
   select,
   #ai-select,
-  #model-select {
-    flex: 1;
+  #model-select,
+  #context-select {
     width: 100%;
-    min-width: auto;
+    max-width: none;
+    min-width: 0;
+    font-size: 16px; /* keep 16px to avoid iOS zoom on focus */
+    padding: 0.35rem 0.45rem;
+  }
+
+  .header-icon-btn,
+  .header-exit-btn {
+    width: 100%;
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .header-user-label {
+    font-size: 0.78rem;
+    max-width: 100%;
   }
 
   .chat-container {
-    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    padding: 0.4rem 0.5rem 0.35rem;
+    gap: 0.35rem;
+  }
+
+  /* Fills space between header and pinned composer (~¾ of screen after chrome) */
+  .chat-history {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.65rem 0.7rem;
+    margin-bottom: 0;
+    border-radius: 10px;
+  }
+
+  .chat-bottom {
+    flex: 0 0 auto;
+    gap: 0.35rem;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .input-area {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+  }
+
+  .tools-menu-btn {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .tools-menu-panel {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* Readable type + force wrap so prose never runs off-screen */
+  .message {
+    margin: 0.65rem 0;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    max-width: 100%;
   }
 
   .user-message {
-    max-width: 90%;
+    max-width: 92%;
   }
 
   .ai-message {
     max-width: 100%;
     width: 100%;
+    overflow-x: hidden; /* contain children; wide media scrolls inside wrappers */
   }
 
-  .input-area {
-    flex-direction: column;
+  .message-body {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
   }
 
-  #send-btn {
+  .message-body > p,
+  .message-body > li,
+  .message-body > h1,
+  .message-body > h2,
+  .message-body > h3,
+  .message-body > h4 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .message-body > h1 { font-size: 1.15rem; }
+  .message-body > h2 { font-size: 1.05rem; }
+  .message-body > h3 { font-size: 0.98rem; }
+
+  /* Tables / wide media: horizontal scroll inside a full-width wrapper */
+  .message .table-wrap,
+  .message .code-block,
+  .message-body > pre {
+    display: block;
     width: 100%;
-    padding: 1rem;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .message table {
+    width: max-content;
+    max-width: none; /* allow wider than viewport; parent scrolls */
+    font-size: 0.82rem;
+  }
+
+  .message th,
+  .message td {
+    padding: 0.35rem 0.55rem;
+    max-width: 12rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .message .code-block pre,
+  .message pre {
+    max-width: 100%;
+    overflow-x: auto;
+    font-size: 0.78rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .message pre code {
+    font-size: inherit;
+    white-space: pre;
+  }
+
+  .message img,
+  .message video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Very wide images: still scrollable if forced wider */
+  .message .media-wrap,
+  .message a:has(> img) {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .composer-row {
+    grid-template-columns: 2.5rem minmax(0, 1fr) 3.35rem;
+    gap: 0.35rem;
+  }
+
+  .mic-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    max-width: 2.5rem;
+    max-height: 2.5rem;
+  }
+
+  #user-input {
+    height: 2.5rem;
+    min-height: 2.5rem;
+    max-height: 2.5rem;
+    padding: 0.45rem 0.6rem;
+  }
+
+  #send-btn,
+  .send-btn {
+    width: 3.35rem;
+    max-width: 3.35rem;
+    height: 2.5rem;
+    max-height: 2.5rem;
+    font-size: 0.85rem;
+  }
+
+  .audio-btn {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.8rem;
+  }
+
+  /* Free vertical space for the ¾ reading pane */
+  footer {
+    display: none;
   }
 }
 
 @media (max-width: 480px) {
+  .composer-row {
+    grid-template-columns: 2.4rem minmax(0, 1fr) 3.15rem;
+    gap: 0.3rem;
+  }
+
+  .mic-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    max-width: 2.4rem;
+    max-height: 2.4rem;
+  }
+
+  #user-input {
+    height: 2.4rem;
+    min-height: 2.4rem;
+    max-height: 2.4rem;
+  }
+
+  #send-btn,
+  .send-btn {
+    width: 3.15rem;
+    max-width: 3.15rem;
+    height: 2.4rem;
+    max-height: 2.4rem;
+  }
+
   .modal-content {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 }
 /* AI badge on assistant messages */
@@ -1156,19 +1583,53 @@ a.media-download:hover {
   align-items: center;
 }
 
-.header-logout-btn {
-  margin-left: 0.75rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--border, #2a2f3a);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
+.header-user-label {
+  margin-left: 0.25rem;
   font-size: 0.85rem;
+  color: var(--text-light);
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
-.header-logout-btn:hover {
-  background: rgba(248, 113, 113, 0.12);
-  border-color: #f87171;
+
+/* Real <a href="/"> — matches other header controls; works without JS */
+a.header-exit-btn,
+button.header-exit-btn,
+.header-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-left: 0.25rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-dark);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+a.header-exit-btn:hover,
+button.header-exit-btn:hover,
+.header-exit-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--input-bg));
+}
+
+a.header-exit-btn:focus-visible,
+.header-exit-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .voice-list .voice-row {

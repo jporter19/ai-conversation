@@ -10,6 +10,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from app.core.auth import request_user_id
 from app.services.handlers import stream_response
 from app.services.handlers.context_builder import build_context, require_provider, require_model
 from app.services.image_gen import ImageGenError, generate_image_url
@@ -30,21 +31,26 @@ class ChatRequest(BaseModel):
     ai: str
     model: str
     messages: List[ChatMessage]
+    context_id: Optional[str] = None
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(body: ChatRequest, request: Request):
+    uid = request_user_id(request)
     ctx = build_context(
-        ai=request.ai,
-        model=request.model,
-        messages=[{"role": m.role, "content": m.content} for m in request.messages],
+        ai=body.ai,
+        model=body.model,
+        messages=[{"role": m.role, "content": m.content} for m in body.messages],
+        context_id=body.context_id,
+        user_id=uid,
     )
     return await stream_response(ctx)
 
 
 @router.get("/media/{token}")
-async def get_media(token: str):
-    resolved = resolve_media_file(token)
+async def get_media(token: str, request: Request):
+    uid = request_user_id(request)
+    resolved = resolve_media_file(token, user_id=uid)
     if not resolved:
         raise HTTPException(404, "Media not found")
     path, content_type = resolved
@@ -52,7 +58,7 @@ async def get_media(token: str):
         path,
         media_type=content_type or "audio/mpeg",
         headers={
-            "Cache-Control": "public, max-age=86400",
+            "Cache-Control": "private, max-age=86400",
             "Accept-Ranges": "bytes",
             "Content-Disposition": f'inline; filename="{path.name}"',
         },
@@ -61,12 +67,14 @@ async def get_media(token: str):
 
 @router.post("/transcribe")
 async def transcribe(
+    request: Request,
     ai: str = Form(...),
     model: str = Form(...),
     file: UploadFile = File(...),
     notes: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
 ):
+    uid = request_user_id(request)
     raw = await file.read()
     if not raw:
         raise HTTPException(400, "Empty audio file")
@@ -87,6 +95,7 @@ async def transcribe(
         model=model,
         messages=[{"role": "user", "content": user_content}],
         require_capability="stt",
+        user_id=uid,
         audio_bytes=raw,
         audio_filename=filename,
         audio_content_type=file.content_type,
@@ -112,6 +121,7 @@ async def generate_image(request: Request):
         model=model,
         messages=[{"role": "user", "content": prompt}],
         require_capability="image",
+        user_id=request_user_id(request),
     )
     try:
         url = await generate_image_url(provider, model, prompt)

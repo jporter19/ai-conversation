@@ -47,6 +47,10 @@ PY=python3.12
 command -v python3.12 >/dev/null 2>&1 || PY=python3
 \$PY -m venv .venv
 .venv/bin/pip install -q --upgrade pip
+if [[ ! -d /opt/portal-sdk ]]; then
+  echo "Missing /opt/portal-sdk. Deploy portal-sdk first." >&2
+  exit 1
+fi
 .venv/bin/pip install -q -r requirements.txt
 # Import smoke test under the same EnvironmentFile systemd uses (via systemctl show).
 # Fallback: skip import check and still restart the service.

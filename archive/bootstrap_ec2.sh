@@ -87,4 +87,4 @@ sudo systemctl reload nginx
 sudo systemctl --no-pager --full status ai-conversation | head -25
 REMOTE
 
-echo "✓ Bootstrap finished. Create users.json next (hash_password.py --write)."
+echo "✓ Bootstrap finished. Configure PORTAL_SESSION_SECRET (shared with portal-admin)."

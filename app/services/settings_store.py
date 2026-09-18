@@ -272,7 +272,7 @@ def get_preferences() -> Dict[str, Any]:
     defaults = {
         "theme": "light",
         "default_ai": "grok",
-        "default_model": "grok-4.5",
+        "default_model": "grok-4.6",
         "tts_voice": "eve",
         "tts_language": "en",
     }
@@ -301,11 +301,15 @@ def provider_has_active_key(provider: Dict[str, Any]) -> bool:
     return bool(get_secret(kn))
 
 
-def public_catalog() -> Dict[str, Any]:
+def public_catalog(user_preferences: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Safe payload for the chat UI (no secrets).
 
     Only enabled providers **with an active API key** (or key-optional tools)
     appear in the main AI list — matches My APIs.
+
+    user_preferences: per-portal-user prefs (theme, tts, defaults). Shared
+    providers/secrets are global; personal prefs are never taken from the
+    global preferences.json when a user dict is supplied.
     """
     cfg = load_providers_config()
     providers = []
@@ -325,8 +329,13 @@ def public_catalog() -> Dict[str, Any]:
             "auto_update": bool(p.get("auto_update")),
             "api_key_name": p.get("api_key_name"),
         })
+    if user_preferences is not None:
+        prefs = dict(user_preferences)
+    else:
+        # Fallback for offline/scripts without a portal user context
+        prefs = get_preferences()
     return {
         "providers": providers,
-        "preferences": get_preferences(),
+        "preferences": prefs,
         "secrets_status": secrets_status(),
     }

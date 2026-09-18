@@ -14,6 +14,10 @@ class RequestContext:
     model: str
     messages: List[Dict[str, str]]  # role + content only
     provider: Dict[str, Any]
+    # Optional conversation context (persona / guidelines) applied every turn
+    system_prompt: Optional[str] = None
+    context_id: Optional[str] = None
+    context_name: Optional[str] = None
     # Optional audio for speech-to-text
     audio_bytes: Optional[bytes] = None
     audio_filename: Optional[str] = None

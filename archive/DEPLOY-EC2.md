@@ -3,15 +3,17 @@
 > **Preferred host is now Amazon Lightsail** — see [`DEPLOY-LIGHTSAIL.md`](DEPLOY-LIGHTSAIL.md)  
 > (`ai-hub` @ `54.175.0.107`, ~$7/mo). This EC2 doc is kept for the legacy instance until it is stopped.
 
-Phase 1 hosting (legacy): single **t3.micro**, nginx reverse proxy, **in-app login** (shared hub account), durable data on the instance.
+Phase 1 hosting (legacy): single **t3.micro**, nginx reverse proxy, durable data on the instance.  
+**Auth is Porter Family Portal SSO** (not local passwords) — see [docs/PORTAL_SSO.md](docs/PORTAL_SSO.md).  
+Prefer **Lightsail** deploy: [`DEPLOY-LIGHTSAIL.md`](DEPLOY-LIGHTSAIL.md).
 
 ## Architecture
 
 ```
-Browser (VPN) → :80 nginx → 127.0.0.1:8000 uvicorn → app
+Browser → nginx → 127.0.0.1:8000 uvicorn → app
 Data: /var/lib/ai-conversation/data
 Code: /opt/ai-conversation
-Env:  /etc/ai-conversation/env
+Env:  /etc/ai-conversation/env  (PORTAL_SESSION_SECRET shared with portal-admin)
 ```
 
 ## Live instance (Phase 1)
@@ -20,11 +22,11 @@ Env:  /etc/ai-conversation/env
 |------|--------|
 | Instance | `i-00b126d39195d971e` (`small-dev`, t3.micro) |
 | Elastic IP | `44.208.175.27` |
-| Login URL | http://44.208.175.27/login |
-| Shared user | `hub` (password set at deploy time; rotate with `hash_password.py`) |
+| AI shell | `/chat/` (with family portal nginx) or host root on legacy-only EC2 |
+| Auth | Portal SSO — users/passwords live in portal-admin, not this app |
 | Data dir | `/var/lib/ai-conversation/data` |
 | Code | `/opt/ai-conversation` |
-| HTTP SG | Operator IP only (`96.238.177.130/32` at deploy); add VPN egress later |
+| HTTP SG | Operator IP only at deploy; tighten as needed |
 
 ## Prerequisites
 
@@ -45,25 +47,20 @@ chmod +x scripts/*.sh
 ./scripts/bootstrap_ec2.sh
 ```
 
-### Shared hub account
+### Portal SSO (required)
+
+On the server, `/etc/ai-conversation/env` must include the **same**
+`PORTAL_SESSION_SECRET` as portal-admin, plus:
 
 ```bash
-# On laptop (writes local app/data/users.json if AI_HUB_DATA_DIR unset)
-.venv/bin/python scripts/hash_password.py -u hub -p 'YOUR_STRONG_PASSWORD' --write
-
-# Copy only users.json to the server data dir
-scp -i "$DEPLOY_KEY" app/data/users.json ec2-user@$DEPLOY_HOST:/var/lib/ai-conversation/data/users.json
-ssh -i "$DEPLOY_KEY" ec2-user@$DEPLOY_HOST 'chmod 600 /var/lib/ai-conversation/data/users.json'
+PORTAL_LOGIN_URL=/admin/login
+APP_ID=ai-conversation
+APP_HOME_PATH=/chat/
+# PORTAL_LEGACY_OWNER_USER_ID=<bootstrap portal uid>  # once, for flat data
 ```
 
-Or generate on the server:
-
-```bash
-ssh -i "$DEPLOY_KEY" ec2-user@$DEPLOY_HOST
-cd /opt/ai-conversation
-sudo -u ec2-user AI_HUB_DATA_DIR=/var/lib/ai-conversation/data \
-  .venv/bin/python scripts/hash_password.py -u hub --write
-```
+Create users and grants only in portal-admin (`/admin/`). Do **not** create
+`users.json` passwords for this app.
 
 ### API keys
 
@@ -114,16 +111,18 @@ Associate an Elastic IP so stop/start does not change the bookmark URL. Unassoci
 ## Local development
 
 ```bash
-export AUTH_DISABLED=1   # skip login on laptop
+export AUTH_DISABLED=1   # fake admin (localhost only; user_id dev-local)
 .venv/bin/python go.py
 ```
 
-With auth enabled locally:
+With portal SSO locally (cookie from portal-admin or `issue_dev_token` in tests):
 
 ```bash
 unset AUTH_DISABLED
-export SESSION_SECRET=dev-secret
-.venv/bin/python scripts/hash_password.py -u hub -p 'devpass' --write
+export PORTAL_SESSION_SECRET=same-as-portal-admin
+export PORTAL_LOGIN_URL=/admin/login
+export APP_ID=ai-conversation
+export APP_HOME_PATH=/chat/
 .venv/bin/python go.py
 ```
 
@@ -135,7 +134,7 @@ export SESSION_SECRET=dev-secret
 | Restart app | `sudo systemctl restart ai-conversation` |
 | Stop instance (save compute) | `aws ec2 stop-instances --instance-ids i-00b126d39195d971e` |
 | Start instance | `aws ec2 start-instances --instance-ids i-00b126d39195d971e` |
-| Rotate hub password | re-run `hash_password.py --write` and replace `users.json` |
+| Users / passwords / grants | portal-admin only — not this app |
 
 ## Phase 1.5 — HTTPS with Cloudflare + Let's Encrypt
 
@@ -229,10 +228,11 @@ cd /path/to/ai-conversation
 ```
 
 In the window:
-1. Confirm **EC2 host**, **SSH key**, **port** `8791`
-2. Paste the **shared token** (same as EC2)
-3. Click **Save settings**, then **Start both**
-4. Status should show relay + tunnel **running** (green tray icon)
+1. Open the **EC2** tab (or **Lightsail** if that is your active hub)
+2. Confirm **host**, **SSH key**, **port** `8791`
+3. Paste the **shared token** (same as the hub env)
+4. Click **Save settings**, then **Start both**
+5. Status should show relay + tunnel **running** (green tray icon)
 
 Close the window to keep it in the **system tray**. Tray menu: Start / Stop / Quit.
 
@@ -244,8 +244,8 @@ Optional login autostart: `cp ~/.local/share/applications/ai-conversation-relay.
 export YOUTUBE_TRANSCRIPT_RELAY_TOKEN='<the-token>'
 .venv/bin/python scripts/transcript_relay.py --token "$YOUTUBE_TRANSCRIPT_RELAY_TOKEN"
 # other terminal:
-export DEPLOY_HOST=44.208.175.27 DEPLOY_KEY=~/.ssh/grok-small-ec2.pem
-./scripts/transcript_relay_tunnel.sh
+DEPLOY_TARGET=ec2 ./scripts/transcript_relay_tunnel.sh
+# or: DEPLOY_HOST=… DEPLOY_KEY=… ./scripts/transcript_relay_tunnel.sh
 ```
 
 **4. Test from EC2:**
@@ -270,7 +270,7 @@ Without relay or proxy, Grok/chat still work; only YouTube **transcript** fails 
 
 ```bash
 # Unauthenticated API
-curl -s -o /dev /dev/null -w "%{http_code}\n" http://$DEPLOY_HOST/api/v1/admin/catalog
+curl -s -o /dev /dev/null -w "%{http_code}\n" http://$DEPLOY_HOST/api/v1/hub/catalog
 # expect 401
 
 # Login page

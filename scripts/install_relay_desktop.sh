@@ -1,69 +1,35 @@
 #!/usr/bin/env bash
-# Install a desktop launcher + optional autostart for the transcript relay tray app.
 set -euo pipefail
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PY="${ROOT}/.venv/bin/python"
-APP="${ROOT}/scripts/transcript_relay_app.py"
-ICON_DIR="${HOME}/.local/share/icons"
-APP_DIR="${HOME}/.local/share/applications"
-AUTOSTART_DIR="${HOME}/.config/autostart"
+PACK="$(cd "$ROOT/../../local/desktop-pack" && pwd)"
+# shellcheck source=../../../local/desktop-pack/lib/install-common.sh
+source "$PACK/lib/install-common.sh"
 
-if [[ ! -x "$PY" ]]; then
-  echo "Missing venv python at $PY — run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt PySide6-Essentials" >&2
-  exit 1
+APP_ID="ai-conversation-relay"
+SKIP_BUILD=0
+[[ "${1:-}" == "--skip-build" ]] && SKIP_BUILD=1
+
+install_custom_menu
+VENV="${ROOT}/.venv"
+ensure_venv "$VENV"
+venv_pip "$VENV" install -q --upgrade pip
+(cd "$ROOT" && venv_pip "$VENV" install -q -r "$ROOT/requirements.txt")
+venv_pip "$VENV" install -q 'PySide6-Essentials' pyinstaller
+
+DIST="$ROOT/dist/$APP_ID"
+if [[ "$SKIP_BUILD" -eq 0 ]]; then
+  (cd "$ROOT" && venv_pyinstaller "$VENV" --noconfirm ai-conversation-relay.spec)
 fi
+[[ -x "$DIST/$APP_ID" ]] || die "freeze missing: $DIST/$APP_ID"
 
-"$PY" -c "from PySide6.QtWidgets import QApplication" 2>/dev/null || {
-  echo "Installing PySide6-Essentials…"
-  "$PY" -m pip install -q 'PySide6-Essentials'
-}
+install_onedir "$APP_ID" "$DIST" "$APP_ID"
+install_hicolor_svg "$APP_ID" "$PACK/icons/ai-conversation-relay.svg"
+# Drop the old loose PNG so the menu does not keep a dead absolute Icon=
+rm -f "$HOME/.local/share/icons/ai-conversation-relay.png"
 
-mkdir -p "$ICON_DIR" "$APP_DIR"
-# Generate a simple PNG icon via the app's painter (inline)
-"$PY" - <<'PY'
-from pathlib import Path
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, Qt
-from PySide6.QtWidgets import QApplication
-import sys
-app = QApplication(sys.argv)
-pix = QPixmap(128, 128)
-pix.fill(Qt.GlobalColor.transparent)
-p = QPainter(pix)
-p.setRenderHint(QPainter.RenderHint.Antialiasing)
-p.setBrush(QColor("#3b82f6"))
-p.setPen(Qt.PenStyle.NoPen)
-p.drawEllipse(8, 8, 112, 112)
-p.setPen(QColor("#ffffff"))
-f = p.font(); f.setBold(True); f.setPointSize(36); p.setFont(f)
-p.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, "YT")
-p.end()
-out = Path.home() / ".local" / "share" / "icons" / "ai-conversation-relay.png"
-out.parent.mkdir(parents=True, exist_ok=True)
-pix.save(str(out))
-print(out)
-PY
-
-DESKTOP="${APP_DIR}/ai-conversation-relay.desktop"
-cat > "$DESKTOP" <<EOF
-[Desktop Entry]
-Type=Application
-Name=AI Conversation Transcript Relay
-Comment=Start/stop home YouTube transcript relay for AWS hub
-Exec=${PY} ${APP}
-Icon=${ICON_DIR}/ai-conversation-relay.png
-Terminal=false
-Categories=Network;Utility;
-StartupNotify=true
-EOF
-chmod +x "$DESKTOP"
-
-echo "Installed launcher: $DESKTOP"
-echo "Search your app menu for: AI Conversation Transcript Relay"
-echo
-echo "Optional — copy to autostart so it runs on login:"
-echo "  mkdir -p ${AUTOSTART_DIR}"
-echo "  cp ${DESKTOP} ${AUTOSTART_DIR}/"
-echo
-echo "Run now:"
-echo "  ${PY} ${APP}"
+TMP="$(mktemp)"
+render_desktop "$ROOT/packaging/ai-conversation-relay.desktop" "$TMP" "$XDG_BIN/$APP_ID" "$APP_ID"
+install_desktop_file "$TMP" "$APP_ID.desktop"
+rm -f "$TMP"
+refresh_desktop
+log "Installed $APP_ID → $XDG_BIN/$APP_ID"

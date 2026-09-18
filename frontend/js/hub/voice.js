@@ -1,4 +1,4 @@
-// frontend/js/admin/voice.js — TTS voice preferences + preview
+// frontend/js/hub/voice.js — TTS voice preferences + preview
 import {
     catalog,
     setStatus,
@@ -84,7 +84,7 @@ export async function previewVoice(voiceId, displayName) {
     voicePreviewAbort = controller;
 
     try {
-        const res = await fetch('/api/v1/admin/tts/preview', {
+        const res = await fetch('/api/v1/hub/tts/preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             signal: controller.signal,
@@ -176,7 +176,7 @@ export async function renderVoiceAdmin() {
     stopVoicePreview();
     list.innerHTML = '<p class="admin-muted">Loading voices…</p>';
     try {
-        const res = await fetch('/api/v1/admin/tts/voices?provider_id=grok');
+        const res = await fetch('/api/v1/hub/tts/voices?provider_id=grok');
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Failed to load voices');
 

@@ -1,5 +1,7 @@
 venv/
 .venv/
+dist/
+build/
 __pycache__/
 *.pyc 
 .env
@@ -17,6 +19,7 @@ app/data/users.json
 app/data/*.tmp
 app/data/conversations/
 app/data/media/
+app/data/contexts.json
 .env.production
 deploy/.env
 deploy/secrets.env

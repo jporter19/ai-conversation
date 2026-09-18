@@ -1,4 +1,4 @@
-// frontend/js/admin/setup.js — guided Add API discover wizard
+// frontend/js/hub/setup.js — guided Add API discover wizard
 import {
     catalog,
     setStatus,
@@ -268,7 +268,7 @@ export async function runDiscover({ fromAnswer = false } = {}) {
             setupHistory.push({ role: 'user', content: description });
         }
 
-        const res = await fetch('/api/v1/admin/setup/discover', {
+        const res = await fetch('/api/v1/hub/setup/discover', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -1,4 +1,4 @@
-// frontend/js/admin.js — Admin Tools entry (tabs + event wiring)
+// frontend/js/hub-ui.js — Admin Tools entry (tabs + event wiring)
 import {
     catalog,
     setStatus,
@@ -8,25 +8,26 @@ import {
     refreshCatalogUI,
     applyTheme,
     DEFAULT_AI,
-} from './admin/shared.js';
+} from './hub/shared.js';
 import {
     renderModelsAdmin,
     renderKeysAdmin,
     renderPrefsAdmin,
     renderProvidersAdmin,
     testKey,
-} from './admin/panels.js';
-import { renderVoiceAdmin, stopVoicePreview } from './admin/voice.js';
+} from './hub/panels.js';
+import { renderVoiceAdmin, stopVoicePreview } from './hub/voice.js';
 import {
     loadPresetChips,
     runDiscover,
     resetDiscover,
     readProposalFromForm,
     showEl,
-} from './admin/setup.js';
+} from './hub/setup.js';
+import { hubFetch } from './http.js';
 
 // re-export refresh for any external use
-export { refreshCatalogUI } from './admin/shared.js';
+export { refreshCatalogUI } from './hub/shared.js';
 
 async function refreshAdminPanels() {
     renderModelsAdmin();
@@ -84,7 +85,7 @@ export function initAdmin() {
             return;
         }
         try {
-            const res = await fetch(`/api/v1/admin/providers/${encodeURIComponent(providerId)}/models`, {
+            const res = await fetch(`/api/v1/hub/providers/${encodeURIComponent(providerId)}/models`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value, label, tooltip, capability, manual: true }),
@@ -116,7 +117,7 @@ export function initAdmin() {
             return;
         }
         try {
-            const res = await fetch('/api/v1/admin/secrets', {
+            const res = await fetch('/api/v1/hub/secrets', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ secrets }),
@@ -131,18 +132,31 @@ export function initAdmin() {
     });
 
     document.getElementById('admin-auto-update-btn')?.addEventListener('click', async () => {
-        setStatus('Updating models from OpenAI & xAI…');
+        const btn = document.getElementById('admin-auto-update-btn');
+        const prev = btn?.textContent;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Refreshing…';
+        }
+        setStatus('Refreshing Grok and ChatGPT model lists…');
         try {
-            const res = await fetch('/api/v1/admin/models/auto-update', { method: 'POST' });
-            const data = await res.json();
-            if (!res.ok) throw new Error(JSON.stringify(data));
+            const data = await hubFetch('/api/v1/hub/models/auto-update', {
+                method: 'POST',
+                timeoutMs: 90_000,
+            });
             const lines = (data.results || []).map(r =>
                 `${r.provider_id}: ${r.ok ? 'OK' : 'FAIL'} — ${r.message}`,
             );
-            setStatus(lines.join(' | ') || 'Done');
+            setStatus(lines.join(' | ') || 'Model lists updated');
             await refreshCatalogUI();
+            switchTab('models');
         } catch (e) {
             setStatus(String(e.message || e), true);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = prev || 'Refresh Grok & ChatGPT lists';
+            }
         }
     });
 
@@ -154,13 +168,12 @@ export function initAdmin() {
         }
         setStatus('Web-searching model descriptions (this can take a minute)…');
         try {
-            const res = await fetch('/api/v1/admin/models/enrich-descriptions', {
+            const data = await hubFetch('/api/v1/hub/models/enrich-descriptions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ force: false }),
+                timeoutMs: 240_000,
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
             const lines = (data.results || []).map(r =>
                 `${r.provider_id}: ${r.ok ? 'OK' : 'FAIL'} — ${r.message}`,
             );
@@ -180,7 +193,7 @@ export function initAdmin() {
         setStatus(providerId
             ? `AI tagging models for ${providerId}…`
             : 'AI tagging & recommending models for all APIs…');
-        const res = await fetch('/api/v1/admin/models/recommend', {
+        const data = await hubFetch('/api/v1/hub/models/recommend', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -188,9 +201,8 @@ export function initAdmin() {
                 use_ai: true,
                 apply_removals: !!applyRemovals,
             }),
+            timeoutMs: 180_000,
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
         const lines = (data.results || []).map(r =>
             `${r.provider_id}: ${r.ok ? 'OK' : 'FAIL'} — ${r.message}`,
         );
@@ -217,6 +229,36 @@ export function initAdmin() {
             if (btn) {
                 btn.disabled = false;
                 btn.textContent = 'AI tag & recommend all';
+            }
+        }
+    });
+
+    document.getElementById('admin-refresh-provider-btn')?.addEventListener('click', async () => {
+        const pid = document.getElementById('admin-model-provider')?.value;
+        if (!pid) {
+            setStatus('Select an API first', true);
+            return;
+        }
+        const btn = document.getElementById('admin-refresh-provider-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Refreshing…';
+        }
+        setStatus(`Refreshing models for ${pid}…`);
+        try {
+            const data = await hubFetch(
+                `/api/v1/hub/models/auto-update/${encodeURIComponent(pid)}`,
+                { method: 'POST' },
+            );
+            setStatus(data.message || `Updated ${pid}`);
+            await refreshCatalogUI();
+            switchTab('models');
+        } catch (e) {
+            setStatus(String(e.message || e), true);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Refresh this API';
             }
         }
     });
@@ -249,7 +291,7 @@ export function initAdmin() {
         const theme = document.getElementById('admin-theme')?.value || 'light';
         const default_ai = document.getElementById('admin-default-ai')?.value || DEFAULT_AI;
         try {
-            const res = await fetch('/api/v1/admin/preferences', {
+            const res = await fetch('/api/v1/hub/preferences', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ theme, default_ai }),
@@ -267,7 +309,7 @@ export function initAdmin() {
         const tts_voice = document.getElementById('admin-tts-voice')?.value?.trim() || 'eve';
         const tts_language = document.getElementById('admin-tts-language')?.value?.trim() || 'en';
         try {
-            const res = await fetch('/api/v1/admin/preferences', {
+            const res = await fetch('/api/v1/hub/preferences', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tts_voice, tts_language }),
@@ -366,13 +408,11 @@ export function initAdmin() {
         }
         setStatus('Saving API…');
         try {
-            const res = await fetch('/api/v1/admin/setup/apply', {
+            const data = await hubFetch('/api/v1/hub/setup/apply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(form),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
 
             const test = data.test;
             let msg = `Saved “${form.label}”`;

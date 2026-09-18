@@ -17,66 +17,92 @@
       "badge_color": "#1a535c",
       "models": [
         {
-          "value": "grok-4.5",
-          "label": "Grok 4.5 (Flagship)",
-          "tooltip": "Newest flagship – coding, agentic tool calling, knowledge work",
-          "capability": "chat"
+          "value": "grok-4.6",
+          "label": "Grok 4.6 (Flagship)",
+          "tooltip": "Current flagship – coding, agentic tool calling, knowledge work",
+          "capability": "chat",
+          "roster_slot": "flagship_chat",
+          "tags": ["flagship"],
+          "recommendation": "keep"
         },
         {
-          "value": "grok-build-0.1",
-          "label": "Grok Build 0.1 (Agentic coding)",
-          "tooltip": "Early-access coding model for agentic workflows",
-          "capability": "chat"
+          "value": "grok-4.1-fast-non-reasoning",
+          "label": "Grok 4.1 Fast (Cheap)",
+          "tooltip": "Fast, lower-cost Grok for everyday chat",
+          "capability": "chat",
+          "roster_slot": "cheap_chat",
+          "tags": ["cheap", "fast"],
+          "recommendation": "keep"
         },
         {
-          "value": "grok-4.3",
-          "label": "Grok 4.3 (1M context)",
-          "tooltip": "Strong general-purpose model with 1M context",
-          "capability": "chat"
-        },
-        {
-          "value": "grok-4.20-0309-reasoning",
-          "label": "Grok 4.20 Reasoning",
-          "tooltip": "Reasoning-optimized – agentic tools, low hallucination",
-          "capability": "chat"
-        },
-        {
-          "value": "grok-4.20-0309-non-reasoning",
-          "label": "Grok 4.20 Non-Reasoning",
-          "tooltip": "Fast non-reasoning variant for chat and automation",
-          "capability": "chat"
-        },
-        {
-          "value": "grok-4.20-multi-agent-0309",
-          "label": "Grok 4.20 Multi-Agent",
-          "tooltip": "Multi-agent collaboration model",
-          "capability": "chat"
+          "value": "grok-code-fast-1",
+          "label": "Grok Code Fast (Coding)",
+          "tooltip": "Coding-focused Grok model",
+          "capability": "chat",
+          "roster_slot": "coding",
+          "tags": ["coding"],
+          "recommendation": "keep"
         },
         {
           "value": "grok-imagine-image-quality",
-          "label": "Grok Imagine (Quality)",
+          "label": "Grok Imagine Quality (Flagship image)",
           "tooltip": "Highest-quality xAI image generation",
-          "capability": "image"
+          "capability": "image",
+          "roster_slot": "flagship_image",
+          "tags": ["flagship", "images"],
+          "recommendation": "keep"
         },
         {
           "value": "grok-imagine-image",
-          "label": "Grok Imagine (Fast)",
+          "label": "Grok Imagine (Cheap image)",
           "tooltip": "Faster, lower-cost xAI image generation",
-          "capability": "image"
+          "capability": "image",
+          "roster_slot": "cheap_image",
+          "tags": ["cheap", "images"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "grok-imagine-video",
+          "label": "Grok Imagine Video (Video)",
+          "tooltip": "xAI video generation (listed; generation not wired yet)",
+          "capability": "video",
+          "roster_slot": "video",
+          "tags": ["video", "specialized"],
+          "recommendation": "keep"
         },
         {
           "value": "grok-stt",
-          "label": "Grok Speech-to-Text",
+          "label": "Grok STT (Speech to Text)",
           "tooltip": "POST https://api.x.ai/v1/stt (multipart file or URL)",
           "capability": "stt",
-          "manual": true
+          "manual": true,
+          "roster_slot": "stt",
+          "tags": ["stt", "specialized"],
+          "recommendation": "keep"
         },
         {
           "value": "grok-tts",
-          "label": "Grok Text-to-Speech",
+          "label": "Grok TTS (Text to Speech)",
           "tooltip": "Text-to-speech via POST /v1/tts — type text to hear it (voice: eve|ara|leo|rex|sal)",
           "capability": "tts",
-          "manual": true
+          "manual": true,
+          "roster_slot": "tts",
+          "tags": ["tts", "specialized"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "grok-4.5",
+          "label": "Grok 4.5",
+          "tooltip": "Previous flagship",
+          "capability": "chat",
+          "recommendation": "review"
+        },
+        {
+          "value": "grok-build-0.1",
+          "label": "Grok Build 0.1",
+          "tooltip": "Early-access coding model for agentic workflows",
+          "capability": "chat",
+          "recommendation": "review"
         }
       ],
       "image_api": "xai"
@@ -93,7 +119,71 @@
       "auto_update": true,
       "auto_update_source": "openai",
       "badge_color": "#10a37f",
-      "models": [],
+      "models": [
+        {
+          "value": "gpt-4o",
+          "label": "GPT-4o (Flagship)",
+          "tooltip": "OpenAI flagship chat model",
+          "capability": "chat",
+          "roster_slot": "flagship_chat",
+          "tags": ["flagship"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "gpt-4o-mini",
+          "label": "GPT-4o Mini (Cheap)",
+          "tooltip": "Fast, low-cost OpenAI chat model",
+          "capability": "chat",
+          "roster_slot": "cheap_chat",
+          "tags": ["cheap", "fast"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "gpt-image-1",
+          "label": "GPT Image (Flagship image)",
+          "tooltip": "OpenAI image generation",
+          "capability": "image",
+          "roster_slot": "flagship_image",
+          "tags": ["flagship", "images"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "dall-e-2",
+          "label": "DALL-E 2 (Cheap image)",
+          "tooltip": "Lower-cost OpenAI image generation",
+          "capability": "image",
+          "roster_slot": "cheap_image",
+          "tags": ["cheap", "images"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "sora-2",
+          "label": "Sora (Video)",
+          "tooltip": "OpenAI video generation (listed; generation not wired yet)",
+          "capability": "video",
+          "roster_slot": "video",
+          "tags": ["video", "specialized"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "whisper-1",
+          "label": "Whisper (Speech to Text)",
+          "tooltip": "OpenAI speech-to-text",
+          "capability": "stt",
+          "roster_slot": "stt",
+          "tags": ["stt", "specialized"],
+          "recommendation": "keep"
+        },
+        {
+          "value": "tts-1",
+          "label": "TTS-1 (Text to Speech)",
+          "tooltip": "OpenAI text-to-speech",
+          "capability": "tts",
+          "roster_slot": "tts",
+          "tags": ["tts", "specialized"],
+          "recommendation": "keep"
+        }
+      ],
       "image_api": "openai"
     },
     {
@@ -146,7 +236,7 @@
   "preferences": {
     "theme": "light",
     "default_ai": "grok",
-    "default_model": "grok-4.5",
+    "default_model": "grok-4.6",
     "tts_voice": "cosmo",
     "tts_language": "en"
   }

@@ -1,7 +1,13 @@
 // frontend/js/state.js
-// Purpose: Manage conversation state (array of messages) + persistence via localStorage
+// Purpose: In-memory conversation for this page. Do not persist to localStorage.
 
-import { STORAGE_KEY } from './config.js';
+import { currentUserId } from './config.js';
+import {
+    clearLiveChat,
+    purgeLegacyUnscopedKeys,
+    wipeForeignLiveChats,
+    setLastShownUserId,
+} from './user_storage.js';
 
 let conversation = []; // [{ role: "user"|"assistant", content: string, ai?: string }]
 
@@ -11,7 +17,7 @@ export function getConversation() {
 
 export function setConversation(newConversation) {
     conversation = newConversation;
-    saveConversation(); // Ensure any set also saves
+    saveConversation();
 }
 
 export function addMessage(message) {
@@ -21,7 +27,13 @@ export function addMessage(message) {
 
 export function clearConversation() {
     conversation = [];
-    localStorage.removeItem(STORAGE_KEY);
+    const uid = currentUserId();
+    if (uid) clearLiveChat(uid);
+}
+
+/** Drop in-memory messages without touching storage (login / identity switch). */
+export function resetConversationMemory() {
+    conversation = [];
 }
 
 /**
@@ -45,45 +57,20 @@ export function removeLastUserTurn(content) {
 }
 
 export function loadConversation(renderCallback, showWelcomeCallback) {
-    try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            let parsed = JSON.parse(saved);
-
-            // Backfill ai field for old assistant messages (one-time upgrade)
-            let needsSave = false;
-            parsed = parsed.map(msg => {
-                if (msg.role === 'assistant' && !msg.ai) {
-                    msg.ai = 'grok'; // fallback (change to 'chatgpt' if most old chats were ChatGPT)
-                    needsSave = true;
-                }
-                return msg;
-            });
-
-            conversation = parsed;
-
-            // If we backfilled anything, save the updated version immediately
-            if (needsSave) {
-                console.log('[state.js] Backfilled ai fields — saving updated conversation');
-                saveConversation();
-            }
-
-            renderCallback();
-        } else {
-            showWelcomeCallback();
-        }
-    } catch (e) {
-        console.error('Failed to load conversation:', e);
-        localStorage.removeItem(STORAGE_KEY);
-        showWelcomeCallback();
+    purgeLegacyUnscopedKeys();
+    const uid = currentUserId();
+    wipeForeignLiveChats(uid);
+    conversation = [];
+    if (uid) {
+        clearLiveChat(uid);
+        setLastShownUserId(uid);
     }
+    // Never paint a cached live thread. Shared-family browsers must not show
+    // the previous user's message blocks. Persist with Store conversation.
+    showWelcomeCallback();
 }
 
 export function saveConversation() {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
-        console.log('[state.js] Conversation saved successfully');
-    } catch (e) {
-        console.warn('[state.js] localStorage save failed:', e);
-    }
+    // Live transcript stays in memory only for this page. Writing it to
+    // localStorage is how admin chats leaked onto bill's screen.
 }

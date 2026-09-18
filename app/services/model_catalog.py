@@ -10,37 +10,29 @@ import httpx
 
 from app.services.settings_store import get_provider, get_secret, set_provider_models
 
-# Prefer chat/image models; skip embeddings, whisper, etc.
+# Noise / non-picker models. Keep whisper, tts, sora — those are roster slots.
 OPENAI_SKIP_PREFIXES = (
     "text-embedding",
-    "tts-",
-    "whisper",
-    "davinci",
-    "babbage",
-    "omni-moderation",
-    "gpt-realtime",
-    "gpt-audio",
-    "gpt-transcribe",
-    "gpt-live",
-    "chatgpt-image",
-    "sora-",
-    "computer-use",
-    "o1-",
-    "o3-",
-    "o4-",
-    "gpt-4o",  # legacy; keep list modern-focused if desired — actually keep gpt-4o for usability
-)
-
-# Actually allow gpt-4o etc. - refine skip list
-OPENAI_SKIP_PREFIXES = (
-    "text-embedding",
-    "tts-",
-    "whisper",
     "davinci",
     "babbage",
     "omni-moderation",
     "text-moderation",
-    "chatgpt-4o-latest",
+    "gpt-realtime",
+    "gpt-audio",
+    "gpt-live",
+    "computer-use",
+)
+
+OPENAI_KEEP_PREFIXES = (
+    "gpt-",
+    "o1",
+    "o3",
+    "o4",
+    "chatgpt",
+    "dall-e",
+    "whisper",
+    "tts-",
+    "sora",
 )
 
 XAI_IMAGE_MARKERS = ("imagine-image", "image", "flux")
@@ -48,14 +40,21 @@ OPENAI_IMAGE_MARKERS = ("dall-e", "gpt-image", "image")
 
 
 def _capability_for(model_id: str, source: str) -> str:
-    mid = model_id.lower()
+    mid = (model_id or "").lower()
+    if "sora" in mid or "imagine-video" in mid or ("video" in mid and "imagine" in mid):
+        return "video"
+    if any(tok in mid for tok in ("whisper", "-stt", "transcribe", "speech-to-text")):
+        return "stt"
+    if mid.startswith("tts-") or mid.endswith("-tts") or "text-to-speech" in mid:
+        return "tts"
     if source == "openai":
-        if any(m in mid for m in OPENAI_IMAGE_MARKERS):
+        if "vision" not in mid and any(m in mid for m in OPENAI_IMAGE_MARKERS):
             return "image"
     if source == "xai":
-        if "imagine-image" in mid or mid.endswith("-image") or "image" in mid and "vision" not in mid:
-            if "vision" not in mid:
-                return "image"
+        if "imagine-image" in mid or (mid.endswith("-image") and "vision" not in mid):
+            return "image"
+        if "image" in mid and "vision" not in mid and "imagine" in mid:
+            return "image"
     return "chat"
 
 
@@ -68,8 +67,7 @@ def _filter_openai_models(ids: List[str]) -> List[str]:
     for mid in ids:
         if any(mid.startswith(p) for p in OPENAI_SKIP_PREFIXES):
             continue
-        # Prefer modern GPT / image models
-        if mid.startswith(("gpt-", "o1", "o3", "o4", "chatgpt", "dall-e", "gpt-image")):
+        if mid.startswith(OPENAI_KEEP_PREFIXES) or "gpt-image" in mid:
             out.append(mid)
     return sorted(set(out))
 
@@ -177,6 +175,11 @@ def score_chat_model(model_id: str) -> Tuple[int, ...]:
 
 
 def pick_best_chat_model(models: List[Dict[str, Any]]) -> Optional[str]:
+    from app.services.model_roster import pick_flagship_chat_id
+
+    flagged = pick_flagship_chat_id(models)
+    if flagged:
+        return flagged
     chat = [
         m for m in (models or [])
         if (m.get("capability") or "chat") == "chat" and m.get("value")
@@ -189,12 +192,17 @@ def pick_best_chat_model(models: List[Dict[str, Any]]) -> Optional[str]:
 
 def maybe_bump_default_model(provider_id: str, models: List[Dict[str, Any]]) -> Optional[str]:
     """
-    When auto-updating the default AI's catalog, move default_model to the newest
-    flagship (e.g. grok-4.5 → grok-4.6). Also fixes a missing default.
+    When auto-updating the default AI's catalog, move *this user's* default_model
+    to the newest flagship (e.g. grok-4.5 → grok-4.6). Also fixes a missing default.
     """
-    from app.services.settings_store import get_preferences, save_preferences
+    from app.core.user_context import get_current_user_id
+    from app.services.user_store import get_user_preferences, save_user_preferences
 
-    prefs = get_preferences()
+    uid = get_current_user_id()
+    if not uid:
+        return None
+
+    prefs = get_user_preferences(uid)
     default_ai = prefs.get("default_ai") or ""
     current = prefs.get("default_model") or ""
     best = pick_best_chat_model(models)
@@ -209,120 +217,42 @@ def maybe_bump_default_model(provider_id: str, models: List[Dict[str, Any]]) -> 
             should_update = True
         elif score_chat_model(best) > score_chat_model(current):
             should_update = True
-    elif current and current not in model_ids and default_ai == provider_id:
-        should_update = True
 
     if should_update and best != current:
-        save_preferences({"default_model": best})
+        save_user_preferences(uid, {"default_model": best})
         return best
     return None
 
 
 async def update_provider_models(provider_id: str) -> Tuple[Dict[str, Any], str]:
-    provider = get_provider(provider_id)
-    if not provider:
-        raise ValueError(f"Unknown provider: {provider_id}")
-    if not provider.get("auto_update"):
-        raise ValueError(f"Provider {provider_id} does not support auto-update")
+    """
+    Refresh the live model list and fill the family roster.
+    Does not web-search descriptions or call an LLM.
+    """
+    from app.services.provider_sync import sync_provider
 
-    source = provider.get("auto_update_source")
-    key_name = provider.get("api_key_name")
-    api_key = get_secret(key_name) if key_name else None
-    if not api_key:
-        raise ValueError(f"API key {key_name} is not configured")
-
-    if source == "openai":
-        models = await fetch_openai_models(api_key)
-    elif source == "xai":
-        models = await fetch_xai_models(api_key)
-    else:
-        raise ValueError(f"Unknown auto_update_source: {source}")
-
-    if not models:
-        raise ValueError("Provider returned no usable models")
-
-    # Preserve manually added models (STT/TTS etc.) that weren't in the remote list
-    # and keep researched descriptions when the same model id returns from the API.
-    remote_ids = {m["value"] for m in models}
-    old_by_id = {
-        m.get("value"): m
-        for m in (provider.get("models") or [])
-        if m.get("value")
-    }
-    for m in models:
-        old = old_by_id.get(m["value"])
-        if not old:
-            continue
-        # Keep prior researched blurb until re-enriched
-        if old.get("description_source") == "web_search" and old.get("tooltip"):
-            m["tooltip"] = old.get("tooltip")
-            m["description"] = old.get("description") or old.get("tooltip")
-            m["description_source"] = old.get("description_source")
-            if old.get("description_updated_at"):
-                m["description_updated_at"] = old["description_updated_at"]
-        if old.get("manual"):
-            m["manual"] = True
-
-    for old in provider.get("models") or []:
-        if old.get("value") and old["value"] not in remote_ids and old.get("manual"):
-            models.append(old)
-
-    # Research short "what it's good for" blurbs for new/placeholder models
-    try:
-        from app.services.model_descriptions import enrich_models
-
-        models, n_desc = await enrich_models(
-            models,
-            provider_label=str(provider.get("label") or provider_id),
-            force=False,
-        )
-    except Exception:
-        n_desc = 0
-
-    # AI/heuristic tags + keep/remove recommendations
-    try:
-        from app.services.model_recommendations import recommend_models
-
-        models, rec_msg = await recommend_models(
-            models,
-            provider_label=str(provider.get("label") or provider_id),
-            use_ai=True,
-        )
-    except Exception as e:
-        rec_msg = f"recommendations skipped: {e}"
-
-    updated = set_provider_models(provider_id, models)
-    default_msg = ""
-    bumped = maybe_bump_default_model(provider_id, models)
-    if bumped:
-        default_msg = f"; default model → {bumped}"
-    desc_msg = f"; {n_desc} description(s)" if n_desc else ""
-    rec_part = f"; {rec_msg}" if rec_msg else ""
-
-    return updated, f"Updated {provider_id}: {len(models)} models{default_msg}{desc_msg}{rec_part}"
+    out = await sync_provider(
+        provider_id,
+        fetch_remote=True,
+        describe=False,
+        recommend=False,
+    )
+    return out["provider"], out["message"]
 
 
 async def update_all_auto_providers() -> List[Dict[str, Any]]:
-    from app.services.settings_store import get_providers
+    from app.services.provider_sync import sync_all_auto_providers
 
-    results = []
-    for p in get_providers():
-        if not p.get("auto_update"):
-            continue
-        pid = p.get("id")
-        try:
-            updated, msg = await update_provider_models(pid)
-            results.append({
-                "provider_id": pid,
-                "ok": True,
-                "message": msg,
-                "model_count": len(updated.get("models") or []),
-            })
-        except Exception as e:
-            results.append({
-                "provider_id": pid,
-                "ok": False,
-                "message": str(e),
-                "model_count": 0,
-            })
+    results = await sync_all_auto_providers(
+        describe=False,
+        recommend=False,
+        use_ai_recommend=False,
+    )
+    # Preserve previous shape (optional model_count)
+    for r in results:
+        if r.get("ok"):
+            p = get_provider(r["provider_id"])
+            r["model_count"] = len((p or {}).get("models") or [])
+        else:
+            r["model_count"] = 0
     return results

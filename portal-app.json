@@ -1,0 +1,8 @@
+{
+  "id": "ai-conversation",
+  "name": "AI Conversation",
+  "description": "Multi-provider AI chat hub — Grok, ChatGPT, speech, images, and more.",
+  "entry_url": "/chat/",
+  "icon": "💬",
+  "accent": "#1a535c"
+}

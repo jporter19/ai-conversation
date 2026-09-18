@@ -1,6 +1,5 @@
 # app/services/media_store.py
-# Purpose: Persist generated media (TTS audio, etc.) so chat can reference
-#          short URLs instead of huge base64 data: links that break markdown.
+# Purpose: Persist generated media (TTS audio, etc.) per portal user.
 
 from __future__ import annotations
 
@@ -10,11 +9,9 @@ import uuid
 from pathlib import Path
 from typing import Optional, Tuple
 
-from app.paths import get_data_dir
+from app.core.user_context import get_current_user_id, require_user_id
+from app.services.user_store import user_media_dir
 
-
-def _media_dir() -> Path:
-    return get_data_dir() / "media"
 _lock = threading.RLock()
 
 _SAFE_ID = re.compile(r"^[a-f0-9]{8,64}$", re.I)
@@ -33,67 +30,84 @@ _EXT_FOR_CT = {
 }
 
 
-def _ensure_dir() -> None:
-    _media_dir().mkdir(parents=True, exist_ok=True)
+def _media_dir(user_id: Optional[str] = None) -> Path:
+    uid = user_id or get_current_user_id()
+    if not uid:
+        raise RuntimeError("user_id required for media")
+    return user_media_dir(uid)
 
 
-def store_media(data: bytes, content_type: str = "audio/mpeg") -> Tuple[str, str]:
+def _ensure_dir(user_id: Optional[str] = None) -> Path:
+    d = _media_dir(user_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def store_media(
+    data: bytes,
+    content_type: str = "audio/mpeg",
+    user_id: Optional[str] = None,
+) -> Tuple[str, str]:
     """
     Write bytes to disk. Returns (media_id, public_path) where public_path is
     like /api/v1/media/{id}.mp3 for the chat player.
     """
     if not data:
         raise ValueError("Empty media payload")
+    uid = user_id or require_user_id()
     ct = (content_type or "audio/mpeg").split(";")[0].strip().lower() or "audio/mpeg"
     ext = _EXT_FOR_CT.get(ct, ".bin")
     media_id = uuid.uuid4().hex
-    _ensure_dir()
-    path = _media_dir() / f"{media_id}{ext}"
+    root = _ensure_dir(uid)
+    path = root / f"{media_id}{ext}"
     with _lock:
         path.write_bytes(data)
-        # sidecar content-type for serving
-        (_media_dir() / f"{media_id}.ctype").write_text(ct, encoding="utf-8")
+        (root / f"{media_id}.ctype").write_text(ct, encoding="utf-8")
     public = f"/api/v1/media/{media_id}{ext}"
     return media_id, public
 
 
-def resolve_media_file(token: str) -> Optional[Tuple[Path, str]]:
+def resolve_media_file(
+    token: str,
+    user_id: Optional[str] = None,
+) -> Optional[Tuple[Path, str]]:
     """
-    Resolve a media token or filename to (path, content_type).
-    Accepts: raw id, id.mp3, id.wav, etc.
+    Resolve a media token or filename to (path, content_type) for this user.
     """
     name = (token or "").strip().lstrip("/")
     if not name or ".." in name or "/" in name or "\\" in name:
         return None
 
-    _ensure_dir()
+    uid = user_id or get_current_user_id()
+    if not uid:
+        return None
 
-    # Allow id or id.ext
+    root = _ensure_dir(uid)
+
     stem = name
     if "." in name:
         stem, ext = name.rsplit(".", 1)
         if not _SAFE_ID.match(stem):
             return None
-        candidate = _media_dir() / f"{stem}.{ext}"
+        candidate = root / f"{stem}.{ext}"
         if candidate.is_file():
-            ct = _read_ctype(stem) or _ct_from_ext(ext)
+            ct = _read_ctype(root, stem) or _ct_from_ext(ext)
             return candidate, ct
         return None
 
     if not _SAFE_ID.match(stem):
         return None
 
-    # Find first matching file with known extensions
     for ext in (".mp3", ".wav", ".ogg", ".webm", ".m4a", ".flac", ".mp4", ".bin"):
-        candidate = _media_dir() / f"{stem}{ext}"
+        candidate = root / f"{stem}{ext}"
         if candidate.is_file():
-            ct = _read_ctype(stem) or _ct_from_ext(ext.lstrip("."))
+            ct = _read_ctype(root, stem) or _ct_from_ext(ext.lstrip("."))
             return candidate, ct
     return None
 
 
-def _read_ctype(stem: str) -> Optional[str]:
-    p = _media_dir() / f"{stem}.ctype"
+def _read_ctype(root: Path, stem: str) -> Optional[str]:
+    p = root / f"{stem}.ctype"
     if p.is_file():
         try:
             return p.read_text(encoding="utf-8").strip() or None

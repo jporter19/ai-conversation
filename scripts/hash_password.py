@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Hash a password for users.json (shared hub account)."""
+"""DEPRECATED: Local users.json passwords are retired (Porter Portal SSO).
+
+Use portal-admin to create users and grants. This script remains only for
+emergency recovery of old data layouts; do not use for production auth.
+"""
 
 from __future__ import annotations
 

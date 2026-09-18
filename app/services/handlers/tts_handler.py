@@ -44,10 +44,10 @@ class TtsHandler:
             yield "**No spoken text after directives.** Add the text you want spoken below `voice:` / `language:` lines."
             return
 
-        # Preferred voice/language from Admin → Voice (overridable per message)
+        # Preferred voice/language from per-user prefs (overridable per message)
         try:
-            from app.services import settings_store
-            prefs = settings_store.get_preferences() or {}
+            from app.services.user_store import current_user_preferences
+            prefs = current_user_preferences() or {}
         except Exception:
             prefs = {}
         voice = opts.get("voice_id") or prefs.get("tts_voice") or "eve"

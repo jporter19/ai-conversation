@@ -1,67 +1,114 @@
 # app/api/v1/auth.py
-# Purpose: Login / logout / session status for the shared hub account.
+# Purpose: Expose the *portal* session to the AI shell. No local password login.
+#
+# Identity is always the portal_session cookie issued by portal-admin.
+# This app never issues its own login credentials.
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
-from app.core.auth import (
+from app.core.auth import clear_portal_cookie, current_portal_user
+from app.core.portal_session import (
+    app_home_path,
+    app_id,
     auth_disabled,
-    clear_login_failures,
-    current_username,
-    login_rate_limited,
-    login_user,
-    logout_user,
-    record_login_failure,
+    effective_app_role,
+    login_redirect_url,
+    portal_login_url,
 )
-from app.services.auth_store import authenticate
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-class LoginBody(BaseModel):
-    username: str = Field(..., min_length=1, max_length=64)
-    password: str = Field(..., min_length=1, max_length=256)
-
-
 @router.post("/login")
-async def login(body: LoginBody, request: Request):
-    if auth_disabled():
-        login_user(request, "dev")
-        return {"ok": True, "username": "dev", "auth_disabled": True}
-
-    if login_rate_limited(request):
-        return JSONResponse(
-            {"detail": "Too many failed attempts. Try again later."},
-            status_code=429,
-        )
-
-    user = authenticate(body.username.strip(), body.password)
-    if not user:
-        record_login_failure(request)
-        return JSONResponse(
-            {"detail": "Invalid username or password."},
-            status_code=401,
-        )
-
-    clear_login_failures(request)
-    login_user(request, user)
-    return {"ok": True, "username": user}
+async def login_removed():
+    """AI Conversation does not accept logins — sign in at the family portal."""
+    return JSONResponse(
+        {
+            "detail": (
+                "This app has no login form. Sign in at the Porter Family Portal; "
+                "AI Conversation uses that session automatically."
+            ),
+            "login_url": portal_login_url(),
+            "portal_home": "/",
+        },
+        status_code=410,
+    )
 
 
 @router.post("/logout")
 async def logout(request: Request):
-    logout_user(request)
-    return {"ok": True}
+    """
+    Best-effort clear of portal_session (mirrors portal-admin logout flags).
+    Prefer POST /api/portal/auth/logout from the browser when available.
+    """
+    response = JSONResponse({
+        "ok": True,
+        "redirect_url": "/",
+        "login_url": login_redirect_url(app_home_path()),
+        "detail": "Portal session cleared. Sign in again at the family portal if needed.",
+    })
+    clear_portal_cookie(response)
+    return response
 
 
 @router.get("/me")
 async def me(request: Request):
+    """
+    Return the portal identity for the current browser cookie.
+    No AI-specific credentials — only portal_session verification.
+    """
     if auth_disabled():
-        return {"authenticated": True, "username": "dev", "auth_disabled": True}
-    user = current_username(request)
+        user = current_portal_user(request)
+        return {
+            "authenticated": True,
+            "auth_disabled": True,
+            "auth_mode": "portal-sso",
+            "username": user.username if user else "dev",
+            "user_id": user.user_id if user else "dev",
+            "is_portal_admin": True,
+            "app_id": app_id(),
+            "role": "admin",
+            "is_app_admin": True,
+            "grants": user.grants if user else [{"id": app_id(), "role": "admin"}],
+        }
+
+    user = current_portal_user(request)
     if not user:
-        return {"authenticated": False, "username": None}
-    return {"authenticated": True, "username": user}
+        return {
+            "authenticated": False,
+            "auth_mode": "portal-sso",
+            "username": None,
+            "user_id": None,
+            "login_url": login_redirect_url(app_home_path()),
+            "portal_home": "/",
+            "detail": "No portal session. Sign in at the family portal.",
+        }
+
+    role = effective_app_role(user)
+    return {
+        "authenticated": True,
+        "auth_disabled": False,
+        "auth_mode": "portal-sso",
+        "username": user.username,
+        "user_id": user.user_id,
+        "is_portal_admin": user.is_portal_admin,
+        "app_id": app_id(),
+        "role": role,
+        "is_app_admin": role == "admin",
+        "grants": user.grants,
+        "must_reset_password": user.must_reset_password,
+        "exp": user.exp,
+    }
+
+
+@router.get("/login-url")
+async def get_login_url(request: Request):
+    """Where to send the browser when there is no portal session."""
+    return {
+        "login_url": login_redirect_url(app_home_path()),
+        "portal_home": "/",
+        "detail": "AI Conversation has no login page; use the family portal.",
+    }

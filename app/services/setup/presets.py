@@ -139,9 +139,9 @@ PRESETS: List[Dict[str, Any]] = [
         "maps_to_existing": "grok",
         "models": [
             {
-                "value": "grok-4.5",
-                "label": "Grok 4.5",
-                "aliases": ["4.5", "chat", "flagship"],
+                "value": "grok-4.6",
+                "label": "Grok 4.6 (Flagship)",
+                "aliases": ["4.6", "4.5", "chat", "flagship"],
                 "capability": "chat",
             },
             {

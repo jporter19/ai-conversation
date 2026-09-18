@@ -86,7 +86,7 @@ async def test_api_key(
             )
         if key_name == "XAI_API_KEY":
             return await _test_openai_compatible(
-                key_name, value, "https://api.x.ai/v1", "xAI", model="grok-4.5"
+                key_name, value, "https://api.x.ai/v1", "xAI", model="grok-4.6"
             )
         return {
             "ok": False,

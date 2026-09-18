@@ -1,4 +1,4 @@
-// frontend/js/admin/panels.js — models, keys, prefs, providers panels
+// frontend/js/hub/panels.js — models, keys, prefs, providers panels
 import {
     catalog,
     setStatus,
@@ -7,6 +7,7 @@ import {
     DEFAULT_AI,
     switchTab,
 } from './shared.js';
+import { hubFetch } from '../http.js';
 
 /** Secrets map name → status row */
 function secretsMap() {
@@ -68,17 +69,21 @@ export function renderModelsAdmin() {
         list.innerHTML = '<p class="admin-muted">No models yet. Run <strong>Auto-Update</strong> or add a model below.</p>';
     }
 
-    // Sort: keep → review → remove (matches backend), flagship first within keep
+    const slotOrder = [
+        'flagship_chat', 'cheap_chat', 'coding',
+        'flagship_image', 'cheap_image', 'video',
+        'stt', 'tts',
+    ];
     const recOrder = { keep: 0, review: 1, remove: 2 };
     const sorted = [...models].sort((a, b) => {
-        const ra = recOrder[a.recommendation] ?? 1;
-        const rb = recOrder[b.recommendation] ?? 1;
+        const sa = slotOrder.indexOf(a.roster_slot);
+        const sb = slotOrder.indexOf(b.roster_slot);
+        const ra = sa === -1 ? 50 : sa;
+        const rb = sb === -1 ? 50 : sb;
         if (ra !== rb) return ra - rb;
-        const ta = a.tags || [];
-        const tb = b.tags || [];
-        const fa = ta.includes('flagship') ? 0 : 1;
-        const fb = tb.includes('flagship') ? 0 : 1;
-        if (fa !== fb) return fa - fb;
+        const oa = recOrder[a.recommendation] ?? 1;
+        const ob = recOrder[b.recommendation] ?? 1;
+        if (oa !== ob) return oa - ob;
         return String(a.label || a.value).localeCompare(String(b.label || b.value));
     });
 
@@ -96,7 +101,7 @@ export function renderModelsAdmin() {
         ban.querySelector('#admin-apply-removals-btn')?.addEventListener('click', async () => {
             if (!confirm(`Remove ${removeCount} recommended model(s) from ${provider.label}?`)) return;
             try {
-                const res = await fetch('/api/v1/admin/models/recommend', {
+                const data = await hubFetch('/api/v1/hub/models/recommend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -105,8 +110,6 @@ export function renderModelsAdmin() {
                         apply_removals: true,
                     }),
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Apply removals failed');
                 setStatus(`Removed ${(data.removed || []).length} model(s).`);
                 await refreshCatalogUI();
             } catch (e) {
@@ -163,7 +166,7 @@ export function renderModelsAdmin() {
             if (!confirm(`Remove model ${mid}?`)) return;
             try {
                 const res = await fetch(
-                    `/api/v1/admin/providers/${encodeURIComponent(pid)}/models/${encodeURIComponent(mid)}`,
+                    `/api/v1/hub/providers/${encodeURIComponent(pid)}/models/${encodeURIComponent(mid)}`,
                     { method: 'DELETE' },
                 );
                 if (!res.ok) throw new Error(await res.text());
@@ -259,7 +262,7 @@ export async function testKey(keyName, opts = {}) {
         if (opts.label) body.label = opts.label;
         if (opts.keyTest) body.key_test = opts.keyTest;
 
-        const res = await fetch('/api/v1/admin/setup/test', {
+        const res = await fetch('/api/v1/hub/setup/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -316,9 +319,25 @@ export function renderProvidersAdmin() {
     if (!list || !catalog) return;
     list.innerHTML = '<p class="admin-muted">Loading…</p>';
 
-    fetch('/api/v1/admin/providers')
-        .then(r => r.json())
+    fetch('/api/v1/hub/providers', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+    })
+        .then(async r => {
+            const data = await r.json().catch(() => ({}));
+            if (r.status === 403) {
+                list.innerHTML = `<p class="admin-muted">Admin role required to manage APIs. (${data.detail || '403'})</p>`;
+                return null;
+            }
+            if (!r.ok) {
+                list.innerHTML = `<p class="admin-muted">Failed to load providers (${r.status}).</p>`;
+                return null;
+            }
+            return data;
+        })
         .then(data => {
+            if (!data) return;
             list.innerHTML = '';
             const secrets = secretsMap();
             const all = data.providers || [];
@@ -332,10 +351,13 @@ export function renderProvidersAdmin() {
             });
 
             if (!shown.length) {
+                const secretHint = (catalog?.secrets_status || [])
+                    .map(s => `${s.name}:${s.configured ? 'ok' : 'missing'}`)
+                    .join(', ') || 'none';
                 list.innerHTML = `
                     <p class="admin-muted">
-                        No APIs with an active key yet.
-                        Use <strong>Add API</strong> (e.g. type <em>add ChatGPT</em>), paste a key, and click Find &amp; add.
+                        No APIs with an active key yet (server has ${all.length} provider(s); keys: ${escapeHtml(secretHint)}).
+                        Use <strong>Add API</strong> / <strong>API Keys</strong> to paste keys if secrets.json is empty on this host.
                     </p>`;
                 return;
             }
@@ -414,7 +436,7 @@ export function renderProvidersAdmin() {
                     }
                     try {
                         const res = await fetch(
-                            `/api/v1/admin/providers/${encodeURIComponent(id)}?hard=true`,
+                            `/api/v1/hub/providers/${encodeURIComponent(id)}?hard=true`,
                             { method: 'DELETE' },
                         );
                         const data = await res.json().catch(() => ({}));

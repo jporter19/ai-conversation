@@ -11,6 +11,7 @@ from app.services.handlers.chat_handler import ChatHandler
 from app.services.handlers.image_handler import ImageHandler
 from app.services.handlers.stt_handler import SttHandler
 from app.services.handlers.tts_handler import TtsHandler
+from app.services.handlers.video_handler import VideoHandler
 from app.services.handlers.tools import get_tool_handler
 from app.services.handlers.types import CapabilityHandler, RequestContext
 
@@ -18,6 +19,7 @@ _CHAT = ChatHandler()
 _IMAGE = ImageHandler()
 _STT = SttHandler()
 _TTS = TtsHandler()
+_VIDEO = VideoHandler()
 
 
 class HandlerResolutionError(Exception):
@@ -41,6 +43,9 @@ def get_handler(provider: Dict[str, Any], model: str) -> CapabilityHandler:
 
     if capability == "image":
         return _IMAGE
+
+    if capability == "video":
+        return _VIDEO
 
     if capability == "stt":
         return _STT  # type: ignore[return-value]
@@ -70,7 +75,14 @@ async def stream_response(ctx: RequestContext) -> StreamingResponse:
         async def err_gen():
             yield f"[Error: {e}]"
 
-        return StreamingResponse(err_gen(), media_type="text/plain; charset=utf-8")
+        return StreamingResponse(
+            err_gen(),
+            media_type="text/plain; charset=utf-8",
+            headers={
+                "Cache-Control": "no-cache, no-store",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     async def gen() -> AsyncIterator[str]:
         try:
@@ -79,4 +91,13 @@ async def stream_response(ctx: RequestContext) -> StreamingResponse:
         except Exception as e:
             yield f"\n\n[Error: {e}]"
 
-    return StreamingResponse(gen(), media_type="text/plain; charset=utf-8")
+    return StreamingResponse(
+        gen(),
+        media_type="text/plain; charset=utf-8",
+        headers={
+            # Keep proxies from buffering the whole reply; reduces mid-stream drops.
+            "Cache-Control": "no-cache, no-store",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

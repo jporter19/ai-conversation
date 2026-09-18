@@ -1,17 +1,17 @@
-// frontend/js/admin/shared.js
+// frontend/js/hub/shared.js
 import {
     loadCatalog,
     applyTheme,
     catalog,
+    currentUserId,
     populateProviders,
     populateModels,
-    STORAGE_AI_KEY,
-    STORAGE_MODEL_KEY,
     DEFAULT_AI,
     DEFAULT_GROK_MODEL,
 } from '../config.js';
+import { readItem, writeItem, removeItem, SUFFIX_AI, SUFFIX_MODEL } from '../user_storage.js';
 
-export { catalog, applyTheme, populateProviders, populateModels, STORAGE_AI_KEY, STORAGE_MODEL_KEY, DEFAULT_AI, DEFAULT_GROK_MODEL, loadCatalog };
+export { catalog, applyTheme, populateProviders, populateModels, DEFAULT_AI, DEFAULT_GROK_MODEL, loadCatalog };
 
 export let adminModal = null;
 export let statusEl = null;
@@ -49,23 +49,30 @@ export async function refreshCatalogUI() {
     await loadCatalog();
     const aiSelect = document.getElementById('ai-select');
     const modelSelect = document.getElementById('model-select');
-    let savedAI = localStorage.getItem(STORAGE_AI_KEY) || catalog?.preferences?.default_ai || DEFAULT_AI;
+    const uid = currentUserId();
+    let savedAI = (uid && readItem(uid, SUFFIX_AI)) || catalog?.preferences?.default_ai || DEFAULT_AI;
     // If saved AI was removed/disabled, fall back to first available
     const available = catalog?.providers || [];
     if (savedAI && !available.some(p => p.id === savedAI)) {
         savedAI = available[0]?.id || '';
-        if (savedAI) localStorage.setItem(STORAGE_AI_KEY, savedAI);
-        else localStorage.removeItem(STORAGE_AI_KEY);
+        if (uid) {
+            if (savedAI) writeItem(uid, SUFFIX_AI, savedAI);
+            else removeItem(uid, SUFFIX_AI);
+        }
     }
     populateProviders(aiSelect, savedAI);
     const models = catalog?.providers?.find(p => p.id === aiSelect.value)?.models || [];
-    let savedModel = localStorage.getItem(STORAGE_MODEL_KEY)
+    let savedModel = (uid && readItem(uid, SUFFIX_MODEL))
         || catalog?.preferences?.default_model
         || DEFAULT_GROK_MODEL;
     if (savedModel && !models.some(m => m.value === savedModel)) {
-        savedModel = models[0]?.value || '';
-        if (savedModel) localStorage.setItem(STORAGE_MODEL_KEY, savedModel);
-        else localStorage.removeItem(STORAGE_MODEL_KEY);
+        const flagged = models.find(m => m.roster_slot === 'flagship_chat')
+            || models.find(m => (m.tags || []).includes('flagship'));
+        savedModel = flagged?.value || models[0]?.value || '';
+        if (uid) {
+            if (savedModel) writeItem(uid, SUFFIX_MODEL, savedModel);
+            else removeItem(uid, SUFFIX_MODEL);
+        }
     }
     populateModels(models, savedModel);
 

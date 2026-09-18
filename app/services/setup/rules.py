@@ -410,7 +410,7 @@ def discover_rules_only(
             combined = f"{preset_by_id['label']} {combined}"
 
     cap_ans = (answers.get("capability") or "").lower().strip()
-    cap = cap_ans if cap_ans in ("chat", "image", "stt", "tts", "transcript") else _detect_capability(combined)
+    cap = cap_ans if cap_ans in ("chat", "image", "stt", "tts", "transcript", "video") else _detect_capability(combined)
 
     vague = _ambiguous_or_insufficient(combined if not answers else "")
     if vague and not answers:

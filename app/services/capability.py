@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 
-CAPABILITIES = frozenset({"chat", "image", "transcript", "stt", "tts"})
+CAPABILITIES = frozenset({"chat", "image", "transcript", "stt", "tts", "video"})
 
 
 def get_model_entry(provider: Dict[str, Any], model_id: str) -> Optional[Dict[str, Any]]:
@@ -37,6 +37,10 @@ def resolve_capability(provider: Dict[str, Any], model_id: str) -> str:
 
     # Migration fallbacks — catalog should own these long-term
     mid = (model_id or "").lower()
+    if any(tok in mid for tok in ("sora", "imagine-video")) or (
+        "video" in mid and "imagine" in mid
+    ):
+        return "video"
     if mid and "vision" not in mid:
         if any(tok in mid for tok in ("imagine-image", "dall-e", "gpt-image", "-image")):
             return "image"

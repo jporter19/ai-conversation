@@ -342,7 +342,7 @@ async def _llm_suggest(
 
         model_value = data.get("model_value") or "default"
         cap = (data.get("capability") or "chat").lower()
-        if cap not in ("chat", "image", "stt", "tts", "transcript"):
+        if cap not in ("chat", "image", "stt", "tts", "transcript", "video"):
             cap = "chat"
         proposal = {
             "id": pid,

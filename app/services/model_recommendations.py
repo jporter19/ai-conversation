@@ -253,9 +253,25 @@ async def _llm_recommend(
     clients = []
     xai = resolve_api_key("XAI_API_KEY")
     oai = resolve_api_key("OPENAI_API_KEY")
+    cheap_id = None
+    try:
+        from app.services.settings_store import get_provider
+        from app.services.model_roster import SLOT_CHEAP_CHAT
+
+        grok = get_provider("grok") or {}
+        for m in grok.get("models") or []:
+            if m.get("roster_slot") == SLOT_CHEAP_CHAT and m.get("value"):
+                cheap_id = str(m["value"])
+                break
+            if "cheap" in (m.get("tags") or []) and (m.get("capability") or "chat") == "chat":
+                cheap_id = str(m.get("value") or "") or cheap_id
+    except Exception:
+        cheap_id = None
     if xai:
-        # Prefer a fast cheap model for admin maintenance
-        clients.append(("grok-4.5", AsyncOpenAI(api_key=xai, base_url="https://api.x.ai/v1")))
+        clients.append((
+            cheap_id or "grok-4.1-fast-non-reasoning",
+            AsyncOpenAI(api_key=xai, base_url="https://api.x.ai/v1"),
+        ))
     if oai:
         clients.append(("gpt-4o-mini", AsyncOpenAI(api_key=oai, base_url="https://api.openai.com/v1")))
     if not clients:
@@ -427,12 +443,16 @@ async def recommend_models(
         rows = await _llm_recommend(provider_label, models)
         if rows:
             out = _apply_llm_rows(models, rows)
+            from app.services.model_roster import preserve_roster_rows
+            out = preserve_roster_rows(out)
             out = sort_models_for_display(out)
             n_remove = sum(1 for m in out if m.get("recommendation") == "remove")
             n_keep = sum(1 for m in out if m.get("recommendation") == "keep")
             return out, f"AI recommendations: keep {n_keep}, remove {n_remove}, of {len(out)}"
 
     out = _heuristic_recommend(models)
+    from app.services.model_roster import preserve_roster_rows
+    out = preserve_roster_rows(out)
     out = sort_models_for_display(out)
     n_remove = sum(1 for m in out if m.get("recommendation") == "remove")
     n_keep = sum(1 for m in out if m.get("recommendation") == "keep")

@@ -32,6 +32,8 @@ def build_context(
     model: str,
     messages: List[Dict[str, Any]],
     require_capability: Optional[str] = None,
+    context_id: Optional[str] = None,
+    user_id: Optional[str] = None,
     audio_bytes: Optional[bytes] = None,
     audio_filename: Optional[str] = None,
     audio_content_type: Optional[str] = None,
@@ -54,11 +56,27 @@ def build_context(
                         f"(capability={cap})."
                     ),
                 )
+
+    system_prompt = None
+    context_name = None
+    cid = (context_id or "").strip() or None
+    if cid:
+        from app.services.context_store import get_context
+
+        ctx = get_context(cid, user_id=user_id)
+        if not ctx:
+            raise HTTPException(status_code=400, detail=f"Unknown context: {cid}")
+        system_prompt = (ctx.get("content") or "").strip() or None
+        context_name = ctx.get("name") or cid
+
     return RequestContext(
         ai=ai,
         model=model,
         messages=messages,
         provider=provider,
+        system_prompt=system_prompt,
+        context_id=cid,
+        context_name=context_name,
         audio_bytes=audio_bytes,
         audio_filename=audio_filename,
         audio_content_type=audio_content_type,

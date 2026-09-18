@@ -17,7 +17,7 @@ _DEFAULT_LANGS = ["en", "en-US", "en-GB"]
 
 _CLOUD_BLOCK_HINT = (
     "YouTube is blocking this server’s IP (common on AWS).\n\n"
-    "**Recommended:** home-PC relay — see scripts/transcript_relay_app.py\n"
+    "**Recommended:** home-PC relay (Lightsail or EC2) — see scripts/transcript_relay_app.py\n"
     "  YOUTUBE_TRANSCRIPT_RELAY_URL=http://127.0.0.1:8791\n"
     "  YOUTUBE_TRANSCRIPT_RELAY_TOKEN=...\n\n"
     "**Alternative:** residential proxy WEBSHARE_PROXY_USERNAME / PASSWORD"

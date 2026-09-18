@@ -16,8 +16,11 @@ Cost-efficient production host for the family hub (portal + apps later).
 | Code | `/opt/ai-conversation` |
 | Data | `/var/lib/ai-conversation/data` |
 | Env | `/etc/ai-conversation/env` |
-| App URL (by IP) | http://54.175.0.107/login |
-| Domain (after DNS) | https://www.porterfamily.us |
+| App shell (domain) | https://porterfamily.us/chat/ |
+| Portal home | https://porterfamily.us/ |
+| Portal admin / login | https://porterfamily.us/admin/ |
+| Family portal repo | https://github.com/jporter19/porter-family-portal |
+| Auth | portal-sdk verifier + this app’s `/api/v1/auth/me` — see [docs/PORTAL_SSO.md](docs/PORTAL_SSO.md). Hub package `/opt/portal-sdk`. |
 
 Compared to the old EC2 `t3.micro` + Elastic IP (~$12/mo), this plan bundles compute + static IPv4 for a fixed **~$7/mo**.
 
@@ -66,8 +69,8 @@ Then set Cloudflare SSL/TLS to **Full (strict)** if using the orange cloud.
 
 ```bash
 ./scripts/deploy_lightsail.sh
-# equivalent:
-# DEPLOY_HOST=54.175.0.107 DEPLOY_KEY=$HOME/.ssh/lightsail-ai-hub.pem ./scripts/deploy_ec2.sh
+# Nginx (chat namespace, no catch-all) lives in porter-family-portal:
+#   cd ../porter-family-portal && ./scripts/apply_nginx.sh
 ```
 
 ## Bootstrap (rebuild packages / unit)
@@ -136,4 +139,70 @@ aws lightsail get-instance-port-states --instance-name ai-hub --region us-east-1
 
 ```bash
 ssh -i ~/.ssh/lightsail-ai-hub.pem ec2-user@54.175.0.107
+```
+
+## YouTube transcripts (home-PC relay)
+
+YouTube blocks most cloud IPs. Fetch transcripts on your **home PC** and reverse-tunnel to Lightsail.
+
+```
+Browser → Lightsail hub → http://127.0.0.1:8791 (on Lightsail)
+                              ↑ SSH -R tunnel
+                         home PC :8791 transcript_relay.py
+                              ↓
+                         YouTube (home IP)
+```
+
+**1. Shared token** (same on home + Lightsail):
+
+```bash
+openssl rand -hex 24
+```
+
+**2. On Lightsail** (`/etc/ai-conversation/env`):
+
+```bash
+YOUTUBE_TRANSCRIPT_RELAY_URL=http://127.0.0.1:8791
+YOUTUBE_TRANSCRIPT_RELAY_TOKEN=<the-token>
+```
+
+```bash
+sudo systemctl restart ai-conversation
+```
+
+**3. On home PC** — tray app (recommended)
+
+```bash
+cd /path/to/ai-conversation
+.venv/bin/pip install -r requirements-relay-app.txt   # once
+./scripts/install_relay_desktop.sh
+.venv/bin/python scripts/transcript_relay_app.py
+```
+
+In the window:
+
+1. Open the **Lightsail** tab (default)
+2. Host `54.175.0.107`, key `~/.ssh/lightsail-ai-hub.pem`, user `ec2-user`
+3. Paste the **shared token**
+4. **Save settings** → **Start both**
+5. Status should show online (green tray icon)
+
+The **EC2** tab is available if you still run a second hub; settings are saved per tab.
+
+**CLI alternative:**
+
+```bash
+export YOUTUBE_TRANSCRIPT_RELAY_TOKEN='<the-token>'
+.venv/bin/python scripts/transcript_relay.py --token "$YOUTUBE_TRANSCRIPT_RELAY_TOKEN"
+# other terminal (Lightsail defaults):
+./scripts/transcript_relay_tunnel.sh
+# or: DEPLOY_TARGET=ec2 ./scripts/transcript_relay_tunnel.sh
+```
+
+**4. Test from Lightsail:**
+
+```bash
+curl -sS -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
+  -d '{"url_or_id":"https://www.youtube.com/watch?v=cGsk3fYoag8"}' \
+  http://127.0.0.1:8791/v1/transcript | head -c 200
 ```
